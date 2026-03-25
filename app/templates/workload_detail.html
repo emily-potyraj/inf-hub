@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ w.model }} {{ w.hardware }} {{ w.framework }} — inf-hub{% endblock %}
+{% block content %}
+
+<div class="mb-4 flex items-center gap-3">
+  <a href="/" style="color:var(--text-muted);font-size:0.82rem;text-decoration:none">← Workloads</a>
+  <span style="color:var(--border)">/</span>
+  <span class="font-metric font-bold text-xl">{{ w.model }}</span>
+  <span style="color:var(--text-muted)">{{ w.hardware }} · {{ w.framework }} · {{ w.precision }} · {{ w.scenario }} · {{ w.seqlens }}</span>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 420px;gap:1.5rem;align-items:start">
+
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-metric font-semibold" style="font-size:0.9rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-label)">Details</h2>
+      {% if w.last_updated %}
+      <span style="font-size:0.72rem;color:var(--text-label)">Last updated {{ w.last_updated[:10] }}</span>
+      {% endif %}
+    </div>
+
+    {% macro field_row(label, field_name, value, editable=true) %}
+    <div style="display:grid;grid-template-columns:140px 1fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;padding-top:2px">{{ label }}</span>
+      <span
+        {% if user and editable %}
+        class="editable-field"
+        hx-get="/workloads/{{ w.id }}/{{ field_name }}/edit"
+        hx-trigger="click"
+        hx-target="this"
+        hx-swap="outerHTML"
+        {% endif %}
+        style="font-size:0.85rem"
+      >{{ value if value is not none else "—" }}</span>
+    </div>
+    {% endmacro %}
+
+    {{ field_row("Status", "status", w.status) }}
+    {{ field_row("PIC", "pic", w.pic) }}
+    {{ field_row("Priority", "priority", w.priority) }}
+    {{ field_row("Story", "story_label", w.story_label) }}
+    {{ field_row("Accuracy", "accuracy_status", w.accuracy_status) }}
+    {{ field_row("NV TPS", "nv_tps", w.nv_tps) }}
+    {{ field_row("AMD TPS", "amd_tps", w.amd_tps) }}
+    {% if w.gap_pct is not none %}
+    <div style="display:grid;grid-template-columns:140px 1fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">Gap vs AMD</span>
+      <span class="font-metric {% if w.gap_pct >= 0 %}gap-win{% else %}gap-behind{% endif %}">{{ "%+.1f"|format(w.gap_pct * 100) }}%</span>
+    </div>
+    {% endif %}
+    {{ field_row("DLPerf published", "dl_perf_published", w.dl_perf_published) }}
+    {{ field_row("InfMax submitted", "infmax_submitted", w.infmax_submitted) }}
+    {{ field_row("NVMax recipe", "nvmax_recipe_url", w.nvmax_recipe_url) }}
+    {{ field_row("IBDB link", "ibdb_link", w.ibdb_link) }}
+    {{ field_row("Notes", "notes", w.notes) }}
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:1.5rem">
+    <div id="config-panel" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem">
+      {% include "partials/config_history.html" %}
+    </div>
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem;max-height:400px;overflow-y:auto">
+      {% include "partials/audit_trail.html" %}
+    </div>
+  </div>
+
+</div>
+
+{% if highlight_config %}
+<script>
+  const el = document.getElementById('config-v{{ highlight_config }}');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+</script>
+{% endif %}
+
+{% endblock %}

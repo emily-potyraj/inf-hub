@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}inf-hub — Team{% endblock %}
+{% block content %}
+
+<h1 class="font-metric text-2xl font-bold mb-6" style="letter-spacing:0.03em">Team</h1>
+
+<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:2rem">
+  <h2 class="font-metric font-semibold mb-4" style="font-size:0.9rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-label)">Function Ownership</h2>
+  <table class="wl-table">
+    <thead>
+      <tr>
+        <th>Function</th><th>Owner</th><th>Backup</th><th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tf in functions %}
+      <tr class="wl-row">
+        <td>{{ tf.function }}</td>
+        <td>{{ tf.owner or "—" }}</td>
+        <td style="color:var(--text-muted)">{{ tf.backup or "—" }}</td>
+        <td style="color:var(--text-muted);font-size:0.78rem">{{ tf.notes or "" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" style="color:var(--text-label);padding:1rem">No functions defined yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if unassigned %}
+<div style="background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.3);border-radius:10px;padding:1.5rem;margin-bottom:2rem">
+  <h2 class="font-metric font-semibold mb-3" style="font-size:0.9rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--amber)">
+    ⚠ Unassigned ({{ unassigned|length }})
+  </h2>
+  {% for w in unassigned %}
+    <div style="font-size:0.83rem;padding:0.3rem 0;border-bottom:1px solid rgba(251,191,36,0.1)">
+      <a href="/workloads/{{ w.id }}" style="color:var(--text);text-decoration:none">{{ w.model }}</a>
+      <span style="color:var(--text-muted);margin-left:0.5rem">{{ w.hardware }} · {{ w.framework }} · {{ w.scenario }}</span>
+      <span class="badge badge-muted" style="margin-left:0.5rem">{{ w.status }}</span>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% for person, workloads in by_pic.items() %}
+<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1rem">
+  <h3 class="font-metric font-semibold mb-3" style="font-size:1rem;color:var(--text)">
+    {{ person }}
+    <span style="color:var(--text-muted);font-size:0.82rem;font-weight:400"> · {{ workloads|length }} workloads</span>
+  </h3>
+  {% for w in workloads %}
+  <div style="display:flex;align-items:center;gap:0.75rem;padding:0.35rem 0;border-bottom:1px solid var(--border);font-size:0.82rem">
+    <a href="/workloads/{{ w.id }}" style="color:var(--text);text-decoration:none;font-weight:500">{{ w.model }}</a>
+    <span style="color:var(--text-muted)">{{ w.hardware }} · {{ w.framework }}</span>
+    {% if w.status == "published" %}<span class="badge badge-green">{{ w.status }}</span>
+    {% elif w.status == "accuracy_gate" %}<span class="badge badge-amber">{{ w.status }}</span>
+    {% else %}<span class="badge badge-blue">{{ w.status }}</span>{% endif %}
+    {% if w.accuracy_status == "fail" %}<span class="badge badge-red">acc fail</span>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+
+{% endblock %}

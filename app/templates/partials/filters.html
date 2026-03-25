@@ -1,0 +1,39 @@
+<form method="get" action="/" class="flex flex-wrap gap-3 items-end mb-4">
+  <div>
+    <label class="block" style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">Hardware</label>
+    <select name="hardware" class="edit-input" style="min-width:100px">
+      <option value="">All</option>
+      {% for hw in ["H100","H200","B200","B300","GB200","GB300","VR200","R200"] %}
+        <option value="{{ hw }}" {% if filters.hardware == hw %}selected{% endif %}>{{ hw }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block" style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">Framework</label>
+    <select name="framework" class="edit-input" style="min-width:110px">
+      <option value="">All</option>
+      {% for fw in ["TRT-LLM","vLLM","SGLang","Dynamo+TRT-LLM"] %}
+        <option value="{{ fw }}" {% if filters.framework == fw %}selected{% endif %}>{{ fw }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block" style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">Status</label>
+    <select name="status" class="edit-input" style="min-width:130px">
+      <option value="">All</option>
+      {% for s in ["not_started","config_search","accuracy_gate","internal_review","infmax_submitted","published"] %}
+        <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <label class="flex items-center gap-2 cursor-pointer" style="font-size:0.83rem">
+    <input type="checkbox" name="amd_ahead" value="true" {% if filters.amd_ahead %}checked{% endif %}>
+    <span style="color:var(--red)">AMD ahead only</span>
+  </label>
+  <label class="flex items-center gap-2 cursor-pointer" style="font-size:0.83rem">
+    <input type="checkbox" name="unassigned_pic" value="true" {% if filters.unassigned_pic %}checked{% endif %}>
+    <span style="color:var(--amber)">Unassigned PIC</span>
+  </label>
+  <button type="submit" class="badge badge-muted" style="cursor:pointer;padding:5px 12px">Filter</button>
+  <a href="/" class="badge badge-muted" style="padding:5px 12px">Clear</a>
+</form>

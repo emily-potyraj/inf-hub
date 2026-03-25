@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}inf-hub — Workloads{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h1 class="font-metric text-2xl font-bold" style="letter-spacing:0.03em">Workload Matrix</h1>
+    <p style="color:var(--text-muted);font-size:0.83rem;margin-top:2px">{{ workloads|length }} workloads</p>
+  </div>
+  {% if user %}
+  <button
+    onclick="document.getElementById('add-modal').classList.remove('hidden')"
+    class="badge badge-green"
+    style="cursor:pointer;padding:6px 14px;font-size:0.82rem">
+    + Add Workload
+  </button>
+  {% endif %}
+</div>
+
+{% include "partials/filters.html" %}
+
+<div style="overflow-x:auto">
+  <table class="wl-table">
+    <thead>
+      <tr>
+        <th>Model</th><th>HW</th><th>Framework</th><th>Precision</th>
+        <th>Scenario · Seqlens</th><th>Status</th><th>PIC</th>
+        <th>NV TPS</th><th>AMD TPS</th><th>Gap</th>
+        <th>Accuracy</th><th>DLPerf</th><th>InfMax</th><th>Config</th>
+      </tr>
+    </thead>
+    <tbody id="workload-tbody">
+      {% for w in workloads %}
+        {% include "partials/workload_row.html" %}
+      {% else %}
+        <tr><td colspan="14" style="text-align:center;color:var(--text-muted);padding:2rem">No workloads match the current filters.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if user %}
+<div id="add-modal" class="hidden fixed inset-0 flex items-center justify-center" style="background:rgba(0,0,0,0.6);z-index:100">
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem;width:480px">
+    <h2 class="font-metric text-lg font-bold mb-4">Add Workload</h2>
+    <form
+      hx-post="/workloads"
+      hx-target="#workload-tbody"
+      hx-swap="afterbegin"
+      hx-on::after-request="if(event.detail.successful) document.getElementById('add-modal').classList.add('hidden')"
+    >
+      {% for field, placeholder in [
+        ("model","e.g. DSR1"), ("hardware","e.g. B200"), ("framework","e.g. vLLM"),
+        ("precision","e.g. FP8"), ("scenario","e.g. agg"), ("seqlens","e.g. 1k/1k")
+      ] %}
+      <div class="mb-3">
+        <label class="block mb-1" style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">{{ field }}</label>
+        <input name="{{ field }}" placeholder="{{ placeholder }}" required class="edit-input w-full">
+      </div>
+      {% endfor %}
+      <div class="flex gap-3 mt-4">
+        <button type="submit" class="badge badge-green" style="cursor:pointer;padding:6px 14px">Add</button>
+        <button type="button" onclick="document.getElementById('add-modal').classList.add('hidden')"
+          class="badge badge-muted" style="cursor:pointer;padding:6px 14px">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

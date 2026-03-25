@@ -1,0 +1,53 @@
+<div>
+  <h3 class="font-metric font-semibold mb-3" style="font-size:0.9rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-label)">Config History</h3>
+  {% if configs %}
+    {% for cv in configs %}
+    <div id="config-v{{ cv.version_num }}"
+         style="background:{% if highlight_config == cv.version_num %}rgba(118,185,0,0.08){% else %}var(--bg-row){% endif %};
+                border:1px solid {% if highlight_config == cv.version_num %}var(--green){% else %}var(--border){% endif %};
+                border-radius:6px;padding:0.75rem;margin-bottom:0.5rem">
+      <div class="flex items-center justify-between mb-1">
+        <span class="font-metric font-bold" style="color:var(--green)">v{{ cv.version_num }}</span>
+        <div class="flex gap-2 items-center">
+          <span style="font-size:0.72rem;color:var(--text-muted)">{{ cv.uploaded_by }} · {{ cv.timestamp.strftime('%b %d, %H:%M') if cv.timestamp }}</span>
+          <button
+            onclick="navigator.clipboard.writeText(window.location.origin + '/workloads/{{ cv.workload_id }}/config/{{ cv.version_num }}').then(() => alert('Deeplink copied!'))"
+            class="badge badge-muted" style="cursor:pointer;font-size:0.68rem;padding:2px 6px">
+            Copy link
+          </button>
+        </div>
+      </div>
+      {% if cv.source_type == "url" %}
+        <a href="{{ cv.url }}" target="_blank" style="color:var(--blue);font-size:0.82rem;word-break:break-all">{{ cv.url }}</a>
+      {% else %}
+        <a href="/workloads/{{ cv.workload_id }}/configs/{{ cv.version_num }}/download"
+           style="color:var(--blue);font-size:0.82rem">⬇ {{ cv.original_filename }}</a>
+      {% endif %}
+      {% if cv.notes %}<p style="font-size:0.78rem;color:var(--text-muted);margin-top:4px">{{ cv.notes }}</p>{% endif %}
+    </div>
+    {% endfor %}
+  {% else %}
+    <p style="color:var(--text-label);font-size:0.82rem">No configs uploaded yet.</p>
+  {% endif %}
+
+  {% if user %}
+  <details style="margin-top:0.75rem">
+    <summary style="cursor:pointer;font-size:0.82rem;color:var(--text-muted)">+ Add config</summary>
+    <div style="margin-top:0.5rem;padding:0.75rem;background:var(--bg-row);border-radius:6px;border:1px solid var(--border)">
+      <form hx-post="/workloads/{{ workload_id }}/configs"
+            hx-target="#config-panel" hx-swap="outerHTML">
+        <div class="mb-2">
+          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">URL</label>
+          <input name="url" placeholder="https://github.com/NVIDIA/srt-slurm/..." class="edit-input w-full mt-1">
+        </div>
+        <input type="hidden" name="source_type" value="url">
+        <div class="mb-2">
+          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">Notes</label>
+          <input name="notes" placeholder="What changed?" class="edit-input w-full mt-1">
+        </div>
+        <button type="submit" class="badge badge-green" style="cursor:pointer;padding:4px 10px;margin-top:4px">Save</button>
+      </form>
+    </div>
+  </details>
+  {% endif %}
+</div>

@@ -1,0 +1,19 @@
+<div>
+  <h3 class="font-metric font-semibold mb-3" style="font-size:0.9rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-label)">Change History</h3>
+  {% if audit %}
+    {% for entry in audit %}
+    <div style="padding:0.4rem 0;border-bottom:1px solid var(--border);font-size:0.79rem">
+      <span style="color:var(--text-muted)">{{ entry.timestamp.strftime('%b %d, %H:%M') if entry.timestamp }}</span>
+      <span style="color:var(--text);margin:0 0.4rem">{{ entry.user_name }}</span>
+      <span style="color:var(--text-label)">changed</span>
+      <span style="color:var(--blue);margin:0 0.3rem">{{ entry.field_name }}</span>
+      <span style="color:var(--text-label)">from</span>
+      <span style="color:var(--red);margin:0 0.3rem">{{ entry.old_value or "—" }}</span>
+      <span style="color:var(--text-label)">→</span>
+      <span style="color:var(--green);margin-left:0.3rem">{{ entry.new_value or "—" }}</span>
+    </div>
+    {% endfor %}
+  {% else %}
+    <p style="color:var(--text-label);font-size:0.82rem">No changes recorded yet.</p>
+  {% endif %}
+</div>

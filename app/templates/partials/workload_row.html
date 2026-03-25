@@ -1,0 +1,53 @@
+{% set stale = w.last_updated and w.last_updated < stale_threshold %}
+{% set gap_class = "gap-win" if w.gap_pct is not none and w.gap_pct >= 0 else ("gap-behind" if w.gap_pct is not none else "gap-even") %}
+
+<tr class="wl-row" id="row-{{ w.id }}">
+  <td>
+    <a href="/workloads/{{ w.id }}" style="color:var(--text);font-weight:500;text-decoration:none">{{ w.model }}</a>
+  </td>
+  <td style="color:var(--text-muted)">{{ w.hardware }}</td>
+  <td style="color:var(--text-muted)">{{ w.framework }}</td>
+  <td style="color:var(--text-muted)">{{ w.precision }}</td>
+  <td style="color:var(--text-muted);font-size:0.78rem">{{ w.scenario }} · {{ w.seqlens }}</td>
+  <td>
+    {% if w.status == "published" %}
+      <span class="badge badge-green">{{ w.status }}</span>
+    {% elif w.status == "accuracy_gate" %}
+      <span class="badge badge-amber">{{ w.status }}</span>
+    {% elif w.status == "not_started" %}
+      <span class="badge badge-muted">{{ w.status }}</span>
+    {% else %}
+      <span class="badge badge-blue">{{ w.status }}</span>
+    {% endif %}
+  </td>
+  <td>
+    {% if w.pic %}
+      <span class="{% if stale %}stale-dot{% endif %}">{{ w.pic }}</span>
+    {% else %}
+      <span style="color:var(--amber);font-size:0.78rem">⚠ unassigned</span>
+    {% endif %}
+  </td>
+  <td class="font-metric">
+    {% if w.nv_tps is not none %}{{ "%.0f"|format(w.nv_tps) }}{% else %}<span style="color:var(--text-label)">—</span>{% endif %}
+  </td>
+  <td class="font-metric">
+    {% if w.amd_tps is not none %}{{ "%.0f"|format(w.amd_tps) }}{% else %}<span style="color:var(--text-label)">—</span>{% endif %}
+  </td>
+  <td class="font-metric {{ gap_class }}">
+    {% if w.gap_pct is not none %}
+      {{ "%+.1f"|format(w.gap_pct * 100) }}%
+    {% else %}
+      <span style="color:var(--text-label)">—</span>
+    {% endif %}
+  </td>
+  <td>
+    {% if w.accuracy_status == "pass" %}<span class="badge badge-green">pass</span>
+    {% elif w.accuracy_status == "fail" %}<span class="badge badge-red">fail</span>
+    {% else %}<span class="badge badge-muted">{{ w.accuracy_status }}</span>{% endif %}
+  </td>
+  <td>{% if w.dl_perf_published %}<span class="badge badge-green">✓ {{ w.dl_perf_published }}</span>{% else %}<span style="color:var(--text-label)">—</span>{% endif %}</td>
+  <td>{% if w.infmax_submitted %}<span class="badge badge-green">✓ {{ w.infmax_submitted }}</span>{% else %}<span style="color:var(--text-label)">—</span>{% endif %}</td>
+  <td>
+    <a href="/workloads/{{ w.id }}" style="color:var(--blue);font-size:0.78rem;text-decoration:none">detail →</a>
+  </td>
+</tr>
