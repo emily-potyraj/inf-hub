@@ -170,7 +170,7 @@ The main view. Every workload NVIDIA is tracking, filterable and inline-editable
 - Hardware
 - Framework
 - Status
-- AMD ahead only (gap_pct < 0)
+- AMD ahead only (gap_pct < 0; rows with null nv_tps or amd_tps are excluded from this filter, not surfaced as AMD-ahead)
 - Unassigned PIC
 - Publication status (not on DLPerf, not in InfMax, etc.)
 - Priority
