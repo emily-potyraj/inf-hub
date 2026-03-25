@@ -1,1 +1,11 @@
 .worktrees/
+__pycache__/
+*.pyc
+.env
+data/configs/
+*.db
+*.db-shm
+*.db-wal
+.venv/
+dist/
+infhub.db
