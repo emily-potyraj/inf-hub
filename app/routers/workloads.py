@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models import Workload, AuditLog
 from app.schemas import WorkloadCreate, WorkloadRow, FieldUpdate
 from app.auth import require_auth, get_current_user
+from app import audit as audit_service
 
 router = APIRouter(prefix="/workloads", tags=["workloads"])
 
@@ -131,7 +132,9 @@ def update_field(
     if not w:
         raise HTTPException(status_code=404, detail="Not found")
     old_value = getattr(w, field)
-    # Audit log will be added in Task 5 — for now just update
+    audit_service.write_audit_log(
+        db, workload_id, user["name"], user["email"], field, old_value, payload.value
+    )
     setattr(w, field, payload.value)
     try:
         db.commit()

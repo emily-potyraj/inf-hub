@@ -42,7 +42,7 @@ def client(db):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as c:
+    with TestClient(app, raise_server_exceptions=False) as c:
         yield c
     app.dependency_overrides.clear()
 
@@ -65,7 +65,7 @@ def auth_client(db):
     payload = {"name": "Test User", "email": "testuser@nvidia.com"}
     token = s.dumps(payload)
 
-    with TestClient(app) as c:
+    with TestClient(app, raise_server_exceptions=False) as c:
         c.cookies.set(SESSION_COOKIE_NAME, token)
         yield c
 
