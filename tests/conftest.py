@@ -49,10 +49,7 @@ def client(db):
 
 @pytest.fixture
 def auth_client(db):
-    """Client with a valid session cookie injected (bypasses real SSO)."""
-    from itsdangerous import URLSafeTimedSerializer
-    from app.auth import SESSION_SECRET, SESSION_COOKIE_NAME
-
+    """Client with a valid session cookie injected via dev-session endpoint (bypasses real SSO)."""
     def override_get_db():
         try:
             yield db
@@ -61,12 +58,10 @@ def auth_client(db):
 
     app.dependency_overrides[get_db] = override_get_db
 
-    s = URLSafeTimedSerializer(SESSION_SECRET)
-    payload = {"name": "Test User", "email": "testuser@nvidia.com"}
-    token = s.dumps(payload)
-
     with TestClient(app, raise_server_exceptions=False) as c:
-        c.cookies.set(SESSION_COOKIE_NAME, token)
+        # Use the dev-session endpoint so the cookie is set via a proper Set-Cookie header,
+        # allowing delete_cookie to clear it from the httpx cookie jar on logout.
+        c.post("/auth/dev-session", json={"name": "Test User", "email": "testuser@nvidia.com"})
         yield c
 
     app.dependency_overrides.clear()
