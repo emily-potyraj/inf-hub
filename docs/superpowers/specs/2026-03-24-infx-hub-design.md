@@ -104,7 +104,7 @@ The atomic unit. One row per (model × hardware × framework × precision × seq
 | accuracy_status | text | not_run, pass, fail, unknown |
 | nv_tps | real | NVIDIA best TPS/GPU (manually updated) |
 | amd_tps | real | AMD best TPS/GPU (manually updated) |
-| gap_pct | real | Calculated: (nv_tps - amd_tps) / amd_tps; negative = AMD ahead |
+| gap_pct | real | Computed at read time from nv_tps and amd_tps: (nv_tps - amd_tps) / amd_tps; negative = AMD ahead. Not stored — derived in the query layer. |
 | dl_perf_published | text | ISO date if published, null if not |
 | infmax_submitted | text | ISO date if submitted, null if not |
 | nvmax_recipe_url | text | URL to public recipe, null if not ready |
@@ -122,15 +122,15 @@ Immutable config history per workload. Never deleted — only appended.
 | workload_id | integer FK | |
 | version_num | integer | Auto-incrementing per workload |
 | source_type | text | "file" or "url" |
-| file_path | text | Server-side path if source_type = file |
+| file_path | text | Server-side path if source_type = file; original filename preserved for download |
+| original_filename | text | Preserved for display and download; any file type accepted, no size limit enforced in v1 |
 | url | text | srt-slurm URL or PR link if source_type = url |
 | uploaded_by | text | Authenticated user display name |
 | uploaded_by_email | text | From SSO token |
 | timestamp | timestamp | |
 | notes | text | What changed, why |
-| is_current | boolean | True for the latest version |
 
-Each config version gets a deeplink: `inf-hub.nvidia.com/workloads/{id}/config/{version_num}` — paste directly into Slack.
+Each config version gets a deeplink: `inf-hub.nvidia.com/workloads/{id}/config/{version_num}` — paste directly into Slack. This URL renders the full workload detail page (`/workloads/{id}`) with the config history panel scrolled to and highlighting the specified version. If the source was a file upload, the page shows a download link; if a URL, it shows the link. It does not trigger an automatic download.
 
 ### `audit_log`
 Every field change on every workload, forever.
@@ -180,7 +180,7 @@ Model, Hardware, Framework, Precision, Scenario/Seqlens, Status (badge), PIC, Pr
 
 **Inline editing (authenticated):** Status, PIC (with "claim" shortcut), accuracy_status, nv_tps, amd_tps, notes, priority, story_label, dl_perf_published, infmax_submitted, nvmax_recipe_url
 
-**Add workload:** Form at top or modal — required fields are model, hardware, framework, precision.
+**Add workload:** Form at top or modal — required fields are model, hardware, framework, precision, scenario, and seqlens. All six fields together form the unique identity of a workload row; duplicate combinations are rejected with a validation error.
 
 ### `/workloads/{id}` — Workload Detail
 
@@ -220,9 +220,9 @@ Session duration: 8 hours (re-auth on next workday).
 
 ## Update Mechanics
 
-**Inline editing:** HTMX `hx-patch` on each editable field. Click to edit, blur or Enter to save. Optimistic UI — field updates immediately, server confirms. On conflict (stale read), page refreshes with current state and a toast.
+**Inline editing:** HTMX `hx-patch` on each editable field. Click to edit, blur or Enter to save. Last-write-wins — the server applies the update unconditionally and returns the saved value, which replaces the field in place. A subtle toast confirms the save. No conflict rejection; if two people edit the same field simultaneously, the second write wins and both are recorded in the audit log.
 
-**Config upload:** File upload or URL paste via form. Server stores file under `data/configs/{workload_id}/{version_num}/` or records the URL. Creates a new `config_versions` row, sets `is_current = true` on new version, false on all prior.
+**Config upload:** File upload or URL paste via form. Server stores file under `data/configs/{workload_id}/{version_num}/` or records the URL. Creates a new `config_versions` row with an auto-incremented `version_num`. The current config is always derived as the row with the highest `version_num` for a given workload — no stored boolean needed.
 
 **Audit:** Every PATCH to a workload field writes an `audit_log` row before updating. Atomic — if the log write fails, the update is rolled back.
 
