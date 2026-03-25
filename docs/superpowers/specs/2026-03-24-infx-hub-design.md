@@ -86,7 +86,7 @@ Principle: readable first, polished second. No harsh contrast ratios. The tool s
 ## Core Data Model
 
 ### `workloads`
-The atomic unit. One row per (model × hardware × framework × precision × seqlens).
+The atomic unit. One row per (model × hardware × framework × precision × scenario × seqlens). A `UNIQUE` constraint on these six columns must be enforced at the database level to prevent duplicate rows.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -104,7 +104,7 @@ The atomic unit. One row per (model × hardware × framework × precision × seq
 | accuracy_status | text | not_run, pass, fail, unknown |
 | nv_tps | real | NVIDIA best TPS/GPU (manually updated) |
 | amd_tps | real | AMD best TPS/GPU (manually updated) |
-| gap_pct | real | Computed at read time from nv_tps and amd_tps: (nv_tps - amd_tps) / amd_tps; negative = AMD ahead. Not stored — derived in the query layer. |
+| gap_pct | virtual | Not a stored column. Computed at query time: `(nv_tps - amd_tps) / amd_tps`. Negative = AMD ahead. Omit from CREATE TABLE; add as a computed expression in SELECT. |
 | dl_perf_published | text | ISO date if published, null if not |
 | infmax_submitted | text | ISO date if submitted, null if not |
 | nvmax_recipe_url | text | URL to public recipe, null if not ready |
@@ -123,7 +123,7 @@ Immutable config history per workload. Never deleted — only appended.
 | version_num | integer | Auto-incrementing per workload |
 | source_type | text | "file" or "url" |
 | file_path | text | Server-side path if source_type = file; original filename preserved for download |
-| original_filename | text | Preserved for display and download; any file type accepted, no size limit enforced in v1 |
+| original_filename | text | Preserved for display and download; any file type accepted; 50 MB per-file cap enforced at upload (nginx `client_max_body_size`) |
 | url | text | srt-slurm URL or PR link if source_type = url |
 | uploaded_by | text | Authenticated user display name |
 | uploaded_by_email | text | From SSO token |
@@ -209,12 +209,12 @@ Two sections:
 ## Auth Flow
 
 1. Unauthenticated user visits any page — reads freely, no redirect
-2. User clicks any edit control → redirected to Microsoft login if no session
-3. After SSO, redirected back to original page; session cookie set (signed, server-side)
+2. User clicks any edit control → if no active session, a small inline prompt appears ("Sign in to edit") rather than a full-page redirect. Clicking it opens the Microsoft login in a popup or redirect; the edit state is not preserved across the OAuth round-trip. After successful auth the user lands back on the page they came from and can re-apply their edit.
+3. After SSO, session cookie set (signed, server-side); user lands on the original page
 4. Session carries: display name, email, expiry
 5. All writes log the authenticated user to `audit_log`
 
-Session duration: 8 hours (re-auth on next workday).
+Session duration: 8 hours. If a session expires while a user has the page open and they attempt a write, the server returns a 401 and the frontend shows a toast: "Session expired — please sign in again." The write is dropped; the user re-authenticates and reapplies it.
 
 ---
 
