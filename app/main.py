@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+import json as _json
 import re
 from collections import defaultdict, OrderedDict
 from datetime import datetime, timezone, timedelta
@@ -13,7 +14,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.database import get_db
-from app.models import Workload, ConfigVersion, AuditLog, TeamFunction
+from app.models import Workload, ConfigVersion, AuditLog, TeamFunction, DevzoneScene, DevzoneCurve
 from app.auth import get_current_user
 from app.routers import workloads as workloads_router, configs, team, auth_router
 from app.routers import breadth_studies as breadth_studies_router
@@ -30,6 +31,36 @@ app.include_router(team.router)
 app.include_router(auth_router.router)
 app.include_router(breadth_studies_router.router)
 app.include_router(devzone_router.router)
+
+
+_CURVE_COLORS = [
+    "#76b900", "#00b4d8", "#fbbf24", "#f87171",
+    "#a78bfa", "#34d399", "#fb923c", "#e879f9",
+]
+
+def _build_plotly_traces(curves):
+    traces = []
+    for i, c in enumerate(curves):
+        try:
+            points = _json.loads(c.points)
+        except (ValueError, TypeError):
+            points = []
+        color = c.color or _CURVE_COLORS[i % len(_CURVE_COLORS)]
+        traces.append({
+            "name": c.label,
+            "x": [p["x"] for p in points],
+            "y": [p["y"] for p in points],
+            "mode": "markers+lines",
+            "line": {"color": color, "width": 3},
+            "marker": {"color": color, "size": 8},
+            "hovertemplate": "%{text}<extra></extra>",
+            "text": [
+                f"<b>{c.label}</b><br>Concurrency: {p.get('concurrency', '?')}"
+                f"<br>Date: {p.get('date', '?')}"
+                for p in points
+            ],
+        })
+    return traces
 
 
 def _group_id(key: tuple) -> str:
@@ -193,6 +224,68 @@ def overview_page(
     user=Depends(get_current_user),
 ):
     return templates.TemplateResponse("overview.html", {"request": request, "user": user})
+
+
+@app.get("/devzone/compare")
+def devzone_compare_page(
+    request: Request,
+    a: str = None,
+    b: str = None,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    scene_a = db.get(DevzoneScene, a) if a else None
+    scene_b = db.get(DevzoneScene, b) if b else None
+
+    def _traces(scene_id):
+        if not scene_id:
+            return "[]"
+        cs = db.query(DevzoneCurve).filter(DevzoneCurve.scene_id == scene_id).all()
+        return _json.dumps(_build_plotly_traces(cs))
+
+    all_scenes = db.query(DevzoneScene).order_by(DevzoneScene.created_at.desc()).all()
+
+    return templates.TemplateResponse("devzone_compare.html", {
+        "request": request,
+        "user": user,
+        "scene_a": scene_a,
+        "scene_b": scene_b,
+        "traces_a": _traces(a),
+        "traces_b": _traces(b),
+        "all_scenes": all_scenes,
+    })
+
+
+@app.get("/devzone")
+def devzone_page(
+    request: Request,
+    scene: str = None,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    scenes = db.query(DevzoneScene).order_by(DevzoneScene.created_at.desc()).all()
+    selected = None
+    curves = []
+    traces_json = "[]"
+
+    if scene:
+        selected = db.get(DevzoneScene, scene)
+        if selected:
+            curves = (
+                db.query(DevzoneCurve)
+                .filter(DevzoneCurve.scene_id == scene)
+                .all()
+            )
+            traces_json = _json.dumps(_build_plotly_traces(curves))
+
+    return templates.TemplateResponse("devzone.html", {
+        "request": request,
+        "user": user,
+        "scenes": scenes,
+        "selected": selected,
+        "curves": curves,
+        "traces_json": traces_json,
+    })
 
 
 @app.get("/workloads/{workload_id}")
