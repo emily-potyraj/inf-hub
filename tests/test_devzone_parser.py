@@ -108,3 +108,13 @@ def test_extract_framework_strips_hardware_suffix():
 
 def test_extract_framework_returns_none_if_no_match():
     assert _extract_framework("Accelerator: H200", "H200") is None
+
+
+def test_parse_extracts_framework_from_series_name():
+    html_with_framework = MINIMAL_HTML.replace(
+        '"name": "Accelerator: H200"',
+        '"name": "SGLang-Public-H200"',
+    )
+    result = parse_ibdb_export(html_with_framework)
+    h200 = next(c for c in result if c["hardware"] == "H200")
+    assert h200["framework"] == "SGLang"
