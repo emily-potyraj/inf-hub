@@ -90,3 +90,33 @@ class TeamFunction(Base):
     owner = Column(Text)
     backup = Column(Text)
     notes = Column(Text)
+
+
+class DevzoneScene(Base):
+    __tablename__ = "devzone_scenes"
+
+    id               = Column(Text, primary_key=True)
+    name             = Column(Text, nullable=False)
+    model            = Column(Text, nullable=False)
+    seqlen           = Column(Text, nullable=False)
+    created_by       = Column(Text)
+    created_by_email = Column(Text)
+    created_at       = Column(DateTime, default=_now)
+    is_published     = Column(Integer, default=0)
+    published_at     = Column(DateTime)
+
+
+class DevzoneCurve(Base):
+    __tablename__ = "devzone_curves"
+
+    id          = Column(Text, primary_key=True)
+    scene_id    = Column(Text, ForeignKey("devzone_scenes.id", ondelete="CASCADE"), nullable=False)
+    label       = Column(Text, nullable=False)
+    hardware    = Column(Text, nullable=False)
+    framework   = Column(Text)
+    precision   = Column(Text)
+    color       = Column(Text)
+    ibdb_source = Column(Text)
+    uploaded_by = Column(Text)
+    uploaded_at = Column(DateTime, default=_now)
+    points      = Column(Text, nullable=False)   # JSON string

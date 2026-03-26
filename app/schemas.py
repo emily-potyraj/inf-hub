@@ -82,3 +82,48 @@ class BreadthStudyResponse(BaseModel):
 
 class FieldUpdate(BaseModel):
     value: Optional[str | float | int] = None
+
+
+class DevzoneSceneCreate(BaseModel):
+    name:   str
+    model:  str
+    seqlen: str
+
+
+class DevzoneSceneRow(BaseModel):
+    id:               str
+    name:             str
+    model:            str
+    seqlen:           str
+    created_by:       Optional[str]
+    created_by_email: Optional[str]
+    created_at:       Optional[str]
+    is_published:     int
+    published_at:     Optional[str]
+    curve_count:      int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class DevzoneCurveRow(BaseModel):
+    id:          str
+    scene_id:    str
+    label:       str
+    hardware:    str
+    framework:   Optional[str]
+    precision:   Optional[str]
+    color:       Optional[str]
+    ibdb_source: Optional[str]
+    uploaded_by: Optional[str]
+    uploaded_at: Optional[str]
+
+    model_config = {"from_attributes": True}
+
+
+class DevzoneSeriesPreview(BaseModel):
+    label:       str
+    hardware:    str
+    framework:   Optional[str]
+    precision:   Optional[str]
+    point_count: int
+    duplicate:   bool
