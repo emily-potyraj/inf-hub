@@ -3,18 +3,21 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import List
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import DevzoneScene, DevzoneCurve
-from app.schemas import (
-    DevzoneSceneCreate, DevzoneSceneRow, DevzoneCurveRow, DevzoneSeriesPreview,
-)
+from app.schemas import DevzoneSceneCreate
 from app.auth import require_auth
 from app.devzone_parser import parse_ibdb_export, CURVE_COLORS
+
+
+class _SceneRename(BaseModel):
+    name: str
 
 router = APIRouter(prefix="/devzone", tags=["devzone"])
 
@@ -78,24 +81,26 @@ def create_scene(
 @router.get("/scenes")
 def list_scenes(db: Session = Depends(get_db)):
     scenes = db.query(DevzoneScene).order_by(DevzoneScene.created_at.desc()).all()
-    result = []
-    for s in scenes:
-        count = db.query(DevzoneCurve).filter(DevzoneCurve.scene_id == s.id).count()
-        result.append(_scene_row(s, count))
-    return result
+    counts = (
+        db.query(DevzoneCurve.scene_id, func.count(DevzoneCurve.id).label("cnt"))
+        .group_by(DevzoneCurve.scene_id)
+        .all()
+    )
+    count_map = {row.scene_id: row.cnt for row in counts}
+    return [_scene_row(s, count_map.get(s.id, 0)) for s in scenes]
 
 
 @router.patch("/scenes/{scene_id}/name")
 def rename_scene(
     scene_id: str,
-    payload: dict,
+    payload: _SceneRename,
     db: Session = Depends(get_db),
     user=Depends(require_auth),
 ):
     scene = db.get(DevzoneScene, scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
-    scene.name = payload.get("name", scene.name)
+    scene.name = payload.name
     db.commit()
     db.refresh(scene)
     return _scene_row(scene)
@@ -217,6 +222,10 @@ async def add_curves(
 
     existing_count = db.query(DevzoneCurve).filter(DevzoneCurve.scene_id == scene_id).count()
 
+    existing_labels = {
+        c.label for c in db.query(DevzoneCurve).filter(DevzoneCurve.scene_id == scene_id).all()
+    }
+
     added = []
     for i, series in enumerate(parsed):
         if series["label"] not in labels_to_add:
@@ -224,13 +233,11 @@ async def add_curves(
 
         # Check for duplicate label and suffix with date if needed
         label = series["label"]
-        existing_labels = [
-            c.label for c in db.query(DevzoneCurve).filter(DevzoneCurve.scene_id == scene_id).all()
-        ]
         if label in existing_labels:
             # Append date from first point's metadata if available
             date = series["points"][0].get("date", "") if series["points"] else ""
             label = f"{label} ({date})" if date else f"{label} (2)"
+        existing_labels.add(label)  # keep current for subsequent iterations
 
         color_idx = (existing_count + len(added)) % len(CURVE_COLORS)
         curve = DevzoneCurve(
