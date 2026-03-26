@@ -13,7 +13,7 @@ from app.database import get_db
 from app.models import DevzoneScene, DevzoneCurve
 from app.schemas import DevzoneSceneCreate
 from app.auth import require_auth
-from app.devzone_parser import parse_ibdb_export, CURVE_COLORS
+from app.devzone_parser import parse_ibdb_export, parse_ibdb_excel, CURVE_COLORS
 
 
 class _SceneRename(BaseModel):
@@ -54,6 +54,14 @@ def _curve_row(curve: DevzoneCurve) -> dict:
         "uploaded_by": curve.uploaded_by,
         "uploaded_at": curve.uploaded_at.isoformat() if curve.uploaded_at else None,
     }
+
+
+async def _parse_upload(file: UploadFile) -> list[dict]:
+    """Parse an uploaded IBDB file, routing to the correct parser by extension."""
+    content = await file.read()
+    if file.filename and file.filename.lower().endswith(".xlsx"):
+        return parse_ibdb_excel(content)
+    return parse_ibdb_export(content.decode("utf-8", errors="replace"))
 
 
 # --- Scenes ---
@@ -177,8 +185,7 @@ async def preview_curves(
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
 
-    html_content = (await file.read()).decode("utf-8", errors="replace")
-    parsed = parse_ibdb_export(html_content)
+    parsed = await _parse_upload(file)
 
     # Build set of existing (hardware, framework, precision) for duplicate detection
     existing = db.query(DevzoneCurve).filter(DevzoneCurve.scene_id == scene_id).all()
@@ -217,8 +224,7 @@ async def add_curves(
     except (json.JSONDecodeError, TypeError):
         raise HTTPException(status_code=422, detail="selected_labels must be a JSON array")
 
-    html_content = (await file.read()).decode("utf-8", errors="replace")
-    parsed = parse_ibdb_export(html_content)
+    parsed = await _parse_upload(file)
 
     existing_count = db.query(DevzoneCurve).filter(DevzoneCurve.scene_id == scene_id).count()
 

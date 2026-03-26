@@ -118,3 +118,102 @@ def test_parse_extracts_framework_from_series_name():
     result = parse_ibdb_export(html_with_framework)
     h200 = next(c for c in result if c["hardware"] == "H200")
     assert h200["framework"] == "SGLang"
+
+
+import io
+import openpyxl
+
+
+def _make_excel_bytes(rows: list[dict]) -> bytes:
+    """Build a minimal IBDB-format Excel file in memory."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    headers = [
+        "s_accelerator_name", "s_framework_name", "s_precision", "s_model_name",
+        "l_concurrency", "d_tput_genphase_tps_per_user", "d_tput_output_tps_per_acc",
+        "ts_timestamp", "s_experiment_id",
+    ]
+    ws.append(headers)
+    for row in rows:
+        ws.append([row.get(h) for h in headers])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+EXCEL_ROWS = [
+    {"s_accelerator_name": "H200", "s_framework_name": "SGLang", "s_precision": "FP8",
+     "s_model_name": "deepseek-r1", "l_concurrency": 4,
+     "d_tput_genphase_tps_per_user": 50.0, "d_tput_output_tps_per_acc": 30.0,
+     "ts_timestamp": "2026-03-13 00:00:00", "s_experiment_id": "EXP-001"},
+    {"s_accelerator_name": "H200", "s_framework_name": "SGLang", "s_precision": "FP8",
+     "s_model_name": "deepseek-r1", "l_concurrency": 8,
+     "d_tput_genphase_tps_per_user": 100.0, "d_tput_output_tps_per_acc": 20.0,
+     "ts_timestamp": "2026-03-13 00:00:00", "s_experiment_id": "EXP-002"},
+    {"s_accelerator_name": "B200", "s_framework_name": "SGLang", "s_precision": "FP8",
+     "s_model_name": "deepseek-r1", "l_concurrency": 4,
+     "d_tput_genphase_tps_per_user": 80.0, "d_tput_output_tps_per_acc": 50.0,
+     "ts_timestamp": "2026-03-13 00:00:00", "s_experiment_id": "EXP-003"},
+    {"s_accelerator_name": "B200", "s_framework_name": "SGLang", "s_precision": "FP8",
+     "s_model_name": "deepseek-r1", "l_concurrency": 8,
+     "d_tput_genphase_tps_per_user": 160.0, "d_tput_output_tps_per_acc": 35.0,
+     "ts_timestamp": "2026-03-13 00:00:00", "s_experiment_id": "EXP-004"},
+]
+
+
+def test_parse_excel_finds_two_curves():
+    content = _make_excel_bytes(EXCEL_ROWS)
+    result = parse_ibdb_export.__module__  # ensure module importable
+    from app.devzone_parser import parse_ibdb_excel
+    result = parse_ibdb_excel(content)
+    assert len(result) == 2
+
+
+def test_parse_excel_hardware_labels():
+    from app.devzone_parser import parse_ibdb_excel
+    result = parse_ibdb_excel(_make_excel_bytes(EXCEL_ROWS))
+    labels = {c["hardware"] for c in result}
+    assert labels == {"H200", "B200"}
+
+
+def test_parse_excel_xy_points():
+    from app.devzone_parser import parse_ibdb_excel
+    result = parse_ibdb_excel(_make_excel_bytes(EXCEL_ROWS))
+    h200 = next(c for c in result if c["hardware"] == "H200")
+    assert len(h200["points"]) == 2
+    # sorted by concurrency: conc=4 first
+    assert h200["points"][0]["x"] == 50.0
+    assert h200["points"][0]["y"] == 30.0
+
+
+def test_parse_excel_point_metadata():
+    from app.devzone_parser import parse_ibdb_excel
+    result = parse_ibdb_excel(_make_excel_bytes(EXCEL_ROWS))
+    h200 = next(c for c in result if c["hardware"] == "H200")
+    assert h200["points"][0]["concurrency"] == "4"
+    assert h200["points"][0]["experiment_id"] == "EXP-001"
+    assert h200["points"][0]["model"] == "deepseek-r1"
+
+
+def test_parse_excel_framework_and_precision():
+    from app.devzone_parser import parse_ibdb_excel
+    result = parse_ibdb_excel(_make_excel_bytes(EXCEL_ROWS))
+    h200 = next(c for c in result if c["hardware"] == "H200")
+    assert h200["framework"] == "SGLang"
+    assert h200["precision"] == "FP8"
+
+
+def test_parse_excel_sorted_by_concurrency():
+    from app.devzone_parser import parse_ibdb_excel
+    # Intentionally reverse concurrency order in input
+    rows = list(reversed(EXCEL_ROWS))
+    result = parse_ibdb_excel(_make_excel_bytes(rows))
+    h200 = next(c for c in result if c["hardware"] == "H200")
+    concs = [int(p["concurrency"]) for p in h200["points"]]
+    assert concs == sorted(concs)
+
+
+def test_parse_excel_returns_empty_for_invalid():
+    from app.devzone_parser import parse_ibdb_excel
+    result = parse_ibdb_excel(b"not an excel file")
+    assert result == []

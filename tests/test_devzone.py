@@ -239,3 +239,38 @@ def test_export_scene_json(auth_client):
     assert data["model"] == "deepseek-r1"
     assert len(data["curves"]) == 2
     assert "points" in data["curves"][0]
+
+
+def test_add_curves_xlsx_dispatch(auth_client):
+    """Excel upload routes to Excel parser (no crash, returns curves or empty)."""
+    import io
+    try:
+        import openpyxl
+    except ImportError:
+        pytest.skip("openpyxl not installed")
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    headers = [
+        "s_accelerator_name", "s_framework_name", "s_precision", "s_model_name",
+        "l_concurrency", "d_tput_genphase_tps_per_user", "d_tput_output_tps_per_acc",
+        "ts_timestamp", "s_experiment_id",
+    ]
+    ws.append(headers)
+    ws.append(["GB300", "SGLang", "FP8", "deepseek-r1", 4, 60.0, 40.0, "2026-03-26", "EXP-X"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    xlsx_bytes = buf.getvalue()
+
+    r = auth_client.post("/devzone/scenes", json={"name": "xlsx test", "model": "deepseek-r1", "seqlen": "128K/8K"})
+    scene_id = r.json()["id"]
+
+    r2 = auth_client.post(
+        f"/devzone/scenes/{scene_id}/curves",
+        files={"file": ("export.xlsx", io.BytesIO(xlsx_bytes), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        data={"selected_labels": json.dumps(["GB300"])},
+    )
+    assert r2.status_code == 200
+    data = r2.json()
+    assert len(data) == 1
+    assert data[0]["label"] == "GB300"

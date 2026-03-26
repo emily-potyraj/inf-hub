@@ -95,3 +95,98 @@ def _extract_framework(series_name: str, hardware: str) -> str | None:
         parts = prefix.split("-")
         return parts[0] if parts else None
     return None
+
+
+def parse_ibdb_excel(content: bytes) -> list[dict[str, Any]]:
+    """
+    Parse an IBDB Excel (.xlsx) export and return a list of curve dicts.
+
+    Axes:
+      x = d_tput_genphase_tps_per_user  (interactivity — generation TPS / user)
+      y = d_tput_output_tps_per_acc     (throughput — output TPS / accelerator)
+
+    Groups rows by (s_accelerator_name, s_framework_name, s_precision).
+    Returns [] on any parse error.
+    """
+    try:
+        import io
+        import openpyxl
+    except ImportError:
+        return []
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+        wb.close()
+    except Exception:
+        return []
+
+    if len(rows) < 2:
+        return []
+
+    headers = [str(h) if h is not None else "" for h in rows[0]]
+
+    def _get(row: tuple, name: str):
+        try:
+            return row[headers.index(name)]
+        except (ValueError, IndexError):
+            return None
+
+    # Group points by (hardware, framework, precision)
+    from collections import defaultdict, OrderedDict
+    groups: dict = OrderedDict()
+
+    for row in rows[1:]:
+        hardware = _get(row, "s_accelerator_name")
+        x = _get(row, "d_tput_genphase_tps_per_user")
+        y = _get(row, "d_tput_output_tps_per_acc")
+
+        if hardware is None or x is None or y is None:
+            continue
+
+        framework = _get(row, "s_framework_name")
+        precision = _get(row, "s_precision")
+        key = (str(hardware), str(framework) if framework else None, str(precision) if precision else None)
+
+        if key not in groups:
+            groups[key] = []
+
+        point: dict[str, Any] = {"x": float(x), "y": float(y)}
+
+        concurrency = _get(row, "l_concurrency")
+        if concurrency is not None:
+            point["concurrency"] = str(int(concurrency))
+
+        ts = _get(row, "ts_timestamp")
+        if ts is not None:
+            # ts may be a datetime object or string; take first 10 chars for date
+            point["date"] = str(ts)[:10]
+
+        exp_id = _get(row, "s_experiment_id")
+        if exp_id is not None:
+            point["experiment_id"] = str(exp_id)
+
+        model = _get(row, "s_model_name")
+        if model is not None:
+            point["model"] = str(model)
+
+        groups[key].append(point)
+
+    result = []
+    for (hardware, framework, precision), points in groups.items():
+        # Sort by concurrency ascending (numeric sort)
+        def _conc_key(p: dict) -> int:
+            v = p.get("concurrency", "0")
+            return int(v) if str(v).isdigit() else 0
+
+        points_sorted = sorted(points, key=_conc_key)
+        result.append({
+            "label": hardware,
+            "hardware": hardware,
+            "framework": framework,
+            "precision": precision,
+            "points": points_sorted,
+        })
+
+    return result
