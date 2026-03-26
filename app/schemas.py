@@ -125,5 +125,7 @@ class DevzoneSeriesPreview(BaseModel):
     hardware:    str
     framework:   Optional[str] = None
     precision:   Optional[str] = None
+    isl:         Optional[int] = None
+    osl:         Optional[int] = None
     point_count: int
     duplicate:   bool

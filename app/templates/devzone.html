@@ -226,6 +226,8 @@
      style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; align-items:center; justify-content:center">
   <div style="background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:2rem; width:520px; max-width:90vw">
     <h3 class="text-lg font-semibold mb-4" style="color:var(--text)">Add Curves from IBDB</h3>
+
+    <!-- Step 1: File upload -->
     <div id="modal-step-1">
       <p class="text-sm mb-3" style="color:var(--text-muted)">Upload an IBDB export (.xlsx or .html) to preview available curves.</p>
       <input type="file" id="ibdb-file-input" accept=".xlsx,.html"
@@ -234,8 +236,7 @@
         <label class="text-xs" style="color:var(--text-muted)">Paste IBDB URL</label>
         <input type="text" placeholder="API integration coming soon" disabled
                class="w-full mt-1 px-3 py-2 rounded text-sm"
-               style="background:var(--row-alt); border:1px solid var(--border); color:var(--text-muted); cursor:not-allowed"
-               title="IBDB API integration coming soon">
+               style="background:var(--row-alt); border:1px solid var(--border); color:var(--text-muted); cursor:not-allowed">
       </div>
       <div class="flex gap-2 justify-end">
         <button type="button" onclick="document.getElementById('add-curves-modal').style.display='none'"
@@ -245,20 +246,69 @@
                 style="background:var(--green); color:#000">Preview</button>
       </div>
     </div>
+
+    <!-- Step 2: Pick chips (Excel only) -->
     <div id="modal-step-2" style="display:none">
+      <p class="text-sm mb-1 font-medium" style="color:var(--text)">Step 2 of 4 — Select chip(s)</p>
+      <p class="text-xs mb-3" style="color:var(--text-muted)">Which hardware platform(s) do you want to import curves for?</p>
+      <div id="chip-checklist" class="mb-4"></div>
+      <div class="flex gap-2 justify-end">
+        <button type="button" onclick="goToStep(1)"
+                class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Back</button>
+        <button type="button" onclick="goToStep(3)"
+                class="text-sm px-3 py-1.5 rounded font-semibold"
+                style="background:var(--green); color:#000">Next</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Pick framework + precision (Excel only) -->
+    <div id="modal-step-3" style="display:none">
+      <p class="text-sm mb-1 font-medium" style="color:var(--text)">Step 3 of 4 — Select framework + precision</p>
+      <p class="text-xs mb-3" style="color:var(--text-muted)">Which framework and precision variant(s)?</p>
+      <div id="fw-checklist" class="mb-4"></div>
+      <div class="flex gap-2 justify-end">
+        <button type="button" onclick="goToStep(2)"
+                class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Back</button>
+        <button type="button" onclick="goToStep(4)"
+                class="text-sm px-3 py-1.5 rounded font-semibold"
+                style="background:var(--green); color:#000">Next</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Pick seqlen(s) (Excel only) -->
+    <div id="modal-step-4" style="display:none">
+      <p class="text-sm mb-1 font-medium" style="color:var(--text)">Step 4 of 4 — Select ISL/OSL</p>
+      <p class="text-xs mb-3" style="color:var(--text-muted)">Which input/output sequence length combination(s)?</p>
+      <div id="seqlen-checklist" class="mb-4"></div>
+      <div id="excel-duplicate-warning" style="display:none" class="text-xs mb-3 p-2 rounded"
+           style="background:#3b1f00; color:#fbbf24; border:1px solid #fbbf24">
+        One or more selected curves already exist in this scene and will be added with a date suffix.
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button type="button" onclick="goToStep(3)"
+                class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Back</button>
+        <button type="button" onclick="confirmExcelCurves()"
+                class="text-sm px-3 py-1.5 rounded font-semibold"
+                style="background:var(--green); color:#000">Add Curves</button>
+      </div>
+    </div>
+
+    <!-- Step 2 (HTML flat checklist — shown for .html files) -->
+    <div id="modal-step-html" style="display:none">
       <div id="series-checklist" class="mb-4"></div>
       <div id="duplicate-warning" style="display:none" class="text-xs mb-3 p-2 rounded"
            style="background:#3b1f00; color:#fbbf24; border:1px solid #fbbf24">
         One or more curves already exist in this scene and will be added with a date suffix.
       </div>
       <div class="flex gap-2 justify-end">
-        <button type="button" onclick="document.getElementById('modal-step-2').style.display='none'; document.getElementById('modal-step-1').style.display='block'"
+        <button type="button" onclick="goToStep(1)"
                 class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Back</button>
         <button type="button" onclick="confirmAddCurves()"
                 class="text-sm px-3 py-1.5 rounded font-semibold"
                 style="background:var(--green); color:#000">Add Selected</button>
       </div>
     </div>
+
   </div>
 </div>
 {% endif %}
@@ -319,33 +369,175 @@ document.getElementById('new-scene-form').addEventListener('submit', function(e)
   });
 });
 
-// Add curves preview
+// ---- Add curves wizard ----
 var _previewData = [];
+var _isExcel = false;
+
+function goToStep(n) {
+  [1,2,3,4,'html'].forEach(function(s) {
+    var el = document.getElementById('modal-step-' + s);
+    if (el) el.style.display = 'none';
+  });
+  var target = document.getElementById('modal-step-' + n);
+  if (target) target.style.display = 'block';
+}
 
 function previewCurves() {
   var fileInput = document.getElementById('ibdb-file-input');
   if (!fileInput.files.length) { alert('Please select a file.'); return; }
+  var file = fileInput.files[0];
+  _isExcel = file.name.toLowerCase().endsWith('.xlsx');
+
   var fd = new FormData();
-  fd.append('file', fileInput.files[0]);
+  fd.append('file', file);
   fetch('/devzone/scenes/' + currentSceneId + '/curves/preview', {method: 'POST', body: fd})
   .then(function(r) { return r.json(); })
   .then(function(series) {
     _previewData = series;
-    var hasDuplicate = series.some(function(s) { return s.duplicate; });
-    document.getElementById('duplicate-warning').style.display = hasDuplicate ? 'block' : 'none';
-    var html = series.map(function(s) {
-      return '<label class="flex items-center gap-2 mb-2 text-sm" style="color:var(--text)">'
-        + '<input type="checkbox" value="' + s.label + '" checked> '
-        + '<strong>' + s.label + '</strong>'
-        + ' &nbsp;<span style="color:var(--text-muted)">'
-        + (s.framework || '') + ' · ' + (s.precision || '') + ' · ' + s.point_count + ' pts'
-        + (s.duplicate ? ' <span style="color:#fbbf24">(already in scene)</span>' : '')
-        + '</span></label>';
-    }).join('');
-    document.getElementById('series-checklist').innerHTML = html;
-    document.getElementById('modal-step-1').style.display = 'none';
-    document.getElementById('modal-step-2').style.display = 'block';
+    if (_isExcel) {
+      renderStep2();
+      goToStep(2);
+    } else {
+      renderHtmlChecklist(series);
+      goToStep('html');
+    }
   });
+}
+
+// ---- Excel wizard steps ----
+
+function renderStep2() {
+  var chips = [];
+  _previewData.forEach(function(s) {
+    if (s.hardware && chips.indexOf(s.hardware) === -1) chips.push(s.hardware);
+  });
+  var html = chips.map(function(chip) {
+    return '<label class="flex items-center gap-3 mb-3 cursor-pointer">'
+      + '<input type="checkbox" value="' + chip + '" checked class="chip-cb" style="width:16px;height:16px"> '
+      + '<span class="text-sm font-medium" style="color:var(--text)">' + chip + '</span>'
+      + '</label>';
+  }).join('');
+  document.getElementById('chip-checklist').innerHTML = html || '<p class="text-sm" style="color:var(--text-muted)">No hardware found.</p>';
+}
+
+function renderStep3() {
+  var selectedChips = new Set(
+    Array.from(document.querySelectorAll('.chip-cb:checked')).map(function(el) { return el.value; })
+  );
+  var filtered = _previewData.filter(function(s) { return selectedChips.has(s.hardware); });
+  var seen = {};
+  filtered.forEach(function(s) {
+    var fw = s.framework || '';
+    var prec = s.precision || '';
+    var key = fw + '||' + prec;
+    if (!seen[key]) seen[key] = {fw: fw, prec: prec, key: key};
+  });
+  var fwList = Object.values(seen);
+  var html = fwList.map(function(item) {
+    var label = [item.fw, item.prec].filter(Boolean).join(' · ') || '(unknown)';
+    return '<label class="flex items-center gap-3 mb-3 cursor-pointer">'
+      + '<input type="checkbox" value="' + item.key + '" checked class="fw-cb" style="width:16px;height:16px"> '
+      + '<span class="text-sm" style="color:var(--text)">' + label + '</span>'
+      + '</label>';
+  }).join('');
+  document.getElementById('fw-checklist').innerHTML = html || '<p class="text-sm" style="color:var(--text-muted)">No frameworks found for selected chips.</p>';
+}
+
+function renderStep4() {
+  var selectedChips = new Set(
+    Array.from(document.querySelectorAll('.chip-cb:checked')).map(function(el) { return el.value; })
+  );
+  var selectedFw = new Set(
+    Array.from(document.querySelectorAll('.fw-cb:checked')).map(function(el) { return el.value; })
+  );
+  var filtered = _previewData.filter(function(s) {
+    var fwKey = (s.framework || '') + '||' + (s.precision || '');
+    return selectedChips.has(s.hardware) && selectedFw.has(fwKey);
+  });
+
+  var seen = {};
+  filtered.forEach(function(s) {
+    if (s.isl != null && s.osl != null) {
+      var key = s.isl + '/' + s.osl;
+      seen[key] = key;
+    }
+  });
+  var seqList = Object.keys(seen);
+
+  var hasDuplicate = filtered.some(function(s) { return s.duplicate; });
+  document.getElementById('excel-duplicate-warning').style.display = hasDuplicate ? 'block' : 'none';
+
+  if (seqList.length === 0) {
+    // No seqlen info — just add all filtered curves directly
+    document.getElementById('seqlen-checklist').innerHTML = '<p class="text-sm" style="color:var(--text-muted)">No ISL/OSL info found — all matching curves will be added.</p>';
+  } else {
+    var html = seqList.map(function(key) {
+      return '<label class="flex items-center gap-3 mb-3 cursor-pointer">'
+        + '<input type="checkbox" value="' + key + '" checked class="seqlen-cb" style="width:16px;height:16px"> '
+        + '<span class="text-sm" style="color:var(--text)">ISL ' + key.split('/')[0] + ' / OSL ' + key.split('/')[1] + '</span>'
+        + '</label>';
+    }).join('');
+    document.getElementById('seqlen-checklist').innerHTML = html;
+  }
+}
+
+// Override goToStep to trigger renders on advance
+var _origGoToStep = goToStep;
+goToStep = function(n) {
+  _origGoToStep(n);
+  if (n === 3) renderStep3();
+  if (n === 4) renderStep4();
+};
+
+function confirmExcelCurves() {
+  var selectedChips = new Set(
+    Array.from(document.querySelectorAll('.chip-cb:checked')).map(function(el) { return el.value; })
+  );
+  var selectedFw = new Set(
+    Array.from(document.querySelectorAll('.fw-cb:checked')).map(function(el) { return el.value; })
+  );
+  var seqlens = document.querySelectorAll('.seqlen-cb');
+  var selectedSeqlens = seqlens.length > 0
+    ? new Set(Array.from(seqlens).filter(function(el) { return el.checked; }).map(function(el) { return el.value; }))
+    : null; // null = no seqlen filter (no seqlen info in file)
+
+  var selected = _previewData.filter(function(s) {
+    var fwKey = (s.framework || '') + '||' + (s.precision || '');
+    if (!selectedChips.has(s.hardware)) return false;
+    if (!selectedFw.has(fwKey)) return false;
+    if (selectedSeqlens !== null) {
+      var seqKey = (s.isl != null && s.osl != null) ? (s.isl + '/' + s.osl) : null;
+      if (seqKey === null || !selectedSeqlens.has(seqKey)) return false;
+    }
+    return true;
+  });
+
+  var labels = selected.map(function(s) { return s.label; });
+  if (!labels.length) return;
+
+  var fileInput = document.getElementById('ibdb-file-input');
+  var fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  fd.append('selected_labels', JSON.stringify(labels));
+  fetch('/devzone/scenes/' + currentSceneId + '/curves', {method: 'POST', body: fd})
+  .then(function(r) { if (r.ok) window.location.reload(); });
+}
+
+// ---- HTML flat checklist (unchanged) ----
+
+function renderHtmlChecklist(series) {
+  var hasDuplicate = series.some(function(s) { return s.duplicate; });
+  document.getElementById('duplicate-warning').style.display = hasDuplicate ? 'block' : 'none';
+  var html = series.map(function(s) {
+    return '<label class="flex items-center gap-2 mb-2 text-sm" style="color:var(--text)">'
+      + '<input type="checkbox" value="' + s.label + '" checked> '
+      + '<strong>' + s.label + '</strong>'
+      + ' &nbsp;<span style="color:var(--text-muted)">'
+      + (s.framework || '') + ' · ' + (s.precision || '') + ' · ' + s.point_count + ' pts'
+      + (s.duplicate ? ' <span style="color:#fbbf24">(already in scene)</span>' : '')
+      + '</span></label>';
+  }).join('');
+  document.getElementById('series-checklist').innerHTML = html;
 }
 
 function confirmAddCurves() {
@@ -357,9 +549,7 @@ function confirmAddCurves() {
   fd.append('file', fileInput.files[0]);
   fd.append('selected_labels', JSON.stringify(checked));
   fetch('/devzone/scenes/' + currentSceneId + '/curves', {method: 'POST', body: fd})
-  .then(function(r) {
-    if (r.ok) window.location.reload();
-  });
+  .then(function(r) { if (r.ok) window.location.reload(); });
 }
 </script>
 {% endblock %}

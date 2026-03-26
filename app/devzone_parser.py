@@ -133,8 +133,8 @@ def parse_ibdb_excel(content: bytes) -> list[dict[str, Any]]:
         except (ValueError, IndexError):
             return None
 
-    # Group points by (hardware, framework, precision)
-    from collections import defaultdict, OrderedDict
+    # Group points by (hardware, framework, precision, isl, osl)
+    from collections import Counter, OrderedDict
     groups: dict = OrderedDict()
 
     for row in rows[1:]:
@@ -147,7 +147,11 @@ def parse_ibdb_excel(content: bytes) -> list[dict[str, Any]]:
 
         framework = _get(row, "s_framework_name")
         precision = _get(row, "s_precision")
-        key = (str(hardware), str(framework) if framework else None, str(precision) if precision else None)
+        isl_val = _get(row, "l_max_input_length")
+        osl_val = _get(row, "l_max_output_length")
+        isl = int(isl_val) if isl_val is not None else None
+        osl = int(osl_val) if osl_val is not None else None
+        key = (str(hardware), str(framework) if framework else None, str(precision) if precision else None, isl, osl)
 
         if key not in groups:
             groups[key] = []
@@ -173,19 +177,27 @@ def parse_ibdb_excel(content: bytes) -> list[dict[str, Any]]:
 
         groups[key].append(point)
 
+    # Count hardware occurrences to determine if label suffix is needed
+    hw_counts = Counter(key[0] for key in groups)
+
     result = []
-    for (hardware, framework, precision), points in groups.items():
+    for (hardware, framework, precision, isl, osl), points in groups.items():
         # Sort by concurrency ascending (numeric sort)
         def _conc_key(p: dict) -> int:
             v = p.get("concurrency", "0")
             return int(v) if str(v).isdigit() else 0
 
         points_sorted = sorted(points, key=_conc_key)
+        label = hardware
+        if hw_counts[hardware] > 1 and isl is not None and osl is not None:
+            label = f"{hardware} ({isl}/{osl})"
         result.append({
-            "label": hardware,
+            "label": label,
             "hardware": hardware,
             "framework": framework,
             "precision": precision,
+            "isl": isl,
+            "osl": osl,
             "points": points_sorted,
         })
 

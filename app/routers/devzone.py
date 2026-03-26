@@ -201,6 +201,8 @@ async def preview_curves(
             "hardware": series["hardware"],
             "framework": series["framework"],
             "precision": series["precision"],
+            "isl": series.get("isl"),
+            "osl": series.get("osl"),
             "point_count": len(series["points"]),
             "duplicate": sig in existing_sigs,
         })

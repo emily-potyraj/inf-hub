@@ -144,6 +144,8 @@ def test_preview_curves_returns_series(auth_client):
     assert labels == {"H200", "B200"}
     assert all(s["point_count"] == 2 for s in data)
     assert all(s["duplicate"] is False for s in data)
+    assert all("isl" in s for s in data)   # field present (may be None for HTML)
+    assert all("osl" in s for s in data)
 
 
 def test_preview_curves_flags_duplicate(auth_client):
@@ -255,9 +257,10 @@ def test_add_curves_xlsx_dispatch(auth_client):
         "s_accelerator_name", "s_framework_name", "s_precision", "s_model_name",
         "l_concurrency", "d_tput_genphase_tps_per_user", "d_tput_output_tps_per_acc",
         "ts_timestamp", "s_experiment_id",
+        "l_max_input_length", "l_max_output_length",
     ]
     ws.append(headers)
-    ws.append(["GB300", "SGLang", "FP8", "deepseek-r1", 4, 60.0, 40.0, "2026-03-26", "EXP-X"])
+    ws.append(["GB300", "SGLang", "FP8", "deepseek-r1", 4, 60.0, 40.0, "2026-03-26", "EXP-X", 1000, 2000])
     buf = io.BytesIO()
     wb.save(buf)
     xlsx_bytes = buf.getvalue()

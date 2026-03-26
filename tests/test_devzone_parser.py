@@ -125,13 +125,13 @@ import openpyxl
 
 
 def _make_excel_bytes(rows: list[dict]) -> bytes:
-    """Build a minimal IBDB-format Excel file in memory."""
     wb = openpyxl.Workbook()
     ws = wb.active
     headers = [
         "s_accelerator_name", "s_framework_name", "s_precision", "s_model_name",
         "l_concurrency", "d_tput_genphase_tps_per_user", "d_tput_output_tps_per_acc",
         "ts_timestamp", "s_experiment_id",
+        "l_max_input_length", "l_max_output_length",
     ]
     ws.append(headers)
     for row in rows:
@@ -145,19 +145,23 @@ EXCEL_ROWS = [
     {"s_accelerator_name": "H200", "s_framework_name": "SGLang", "s_precision": "FP8",
      "s_model_name": "deepseek-r1", "l_concurrency": 4,
      "d_tput_genphase_tps_per_user": 50.0, "d_tput_output_tps_per_acc": 30.0,
-     "ts_timestamp": "2026-03-13 00:00:00", "s_experiment_id": "EXP-001"},
+     "ts_timestamp": "2026-03-13 00:00:00", "s_experiment_id": "EXP-001",
+     "l_max_input_length": 1000, "l_max_output_length": 2000},
     {"s_accelerator_name": "H200", "s_framework_name": "SGLang", "s_precision": "FP8",
      "s_model_name": "deepseek-r1", "l_concurrency": 8,
      "d_tput_genphase_tps_per_user": 100.0, "d_tput_output_tps_per_acc": 20.0,
-     "ts_timestamp": "2026-03-13 00:00:00", "s_experiment_id": "EXP-002"},
+     "ts_timestamp": "2026-03-13 00:00:00", "s_experiment_id": "EXP-002",
+     "l_max_input_length": 1000, "l_max_output_length": 2000},
     {"s_accelerator_name": "B200", "s_framework_name": "SGLang", "s_precision": "FP8",
      "s_model_name": "deepseek-r1", "l_concurrency": 4,
      "d_tput_genphase_tps_per_user": 80.0, "d_tput_output_tps_per_acc": 50.0,
-     "ts_timestamp": "2026-03-13 00:00:00", "s_experiment_id": "EXP-003"},
+     "ts_timestamp": "2026-03-13 00:00:00", "s_experiment_id": "EXP-003",
+     "l_max_input_length": 1000, "l_max_output_length": 2000},
     {"s_accelerator_name": "B200", "s_framework_name": "SGLang", "s_precision": "FP8",
      "s_model_name": "deepseek-r1", "l_concurrency": 8,
      "d_tput_genphase_tps_per_user": 160.0, "d_tput_output_tps_per_acc": 35.0,
-     "ts_timestamp": "2026-03-13 00:00:00", "s_experiment_id": "EXP-004"},
+     "ts_timestamp": "2026-03-13 00:00:00", "s_experiment_id": "EXP-004",
+     "l_max_input_length": 1000, "l_max_output_length": 2000},
 ]
 
 
@@ -181,9 +185,34 @@ def test_parse_excel_xy_points():
     result = parse_ibdb_excel(_make_excel_bytes(EXCEL_ROWS))
     h200 = next(c for c in result if c["hardware"] == "H200")
     assert len(h200["points"]) == 2
-    # sorted by concurrency: conc=4 first
     assert h200["points"][0]["x"] == 50.0
     assert h200["points"][0]["y"] == 30.0
+
+
+def test_parse_excel_isl_osl_in_curve():
+    from app.devzone_parser import parse_ibdb_excel
+    result = parse_ibdb_excel(_make_excel_bytes(EXCEL_ROWS))
+    h200 = next(c for c in result if c["hardware"] == "H200")
+    assert h200["isl"] == 1000
+    assert h200["osl"] == 2000
+
+
+def test_parse_excel_multi_seqlen_unique_labels():
+    """When same hardware appears at multiple ISL/OSL, labels get suffixed."""
+    from app.devzone_parser import parse_ibdb_excel
+    rows = EXCEL_ROWS + [
+        {"s_accelerator_name": "H200", "s_framework_name": "SGLang", "s_precision": "FP8",
+         "s_model_name": "deepseek-r1", "l_concurrency": 4,
+         "d_tput_genphase_tps_per_user": 55.0, "d_tput_output_tps_per_acc": 32.0,
+         "ts_timestamp": "2026-03-13 00:00:00", "s_experiment_id": "EXP-005",
+         "l_max_input_length": 128000, "l_max_output_length": 8000},
+    ]
+    result = parse_ibdb_excel(_make_excel_bytes(rows))
+    h200_curves = [c for c in result if c["hardware"] == "H200"]
+    assert len(h200_curves) == 2
+    labels = {c["label"] for c in h200_curves}
+    # Both should have isl/osl suffix since there are 2 H200 curves
+    assert all("1000" in l or "128000" in l for l in labels)
 
 
 def test_parse_excel_point_metadata():
