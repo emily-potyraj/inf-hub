@@ -2,44 +2,317 @@
 {% block title %}inf-hub — Workloads{% endblock %}
 {% block content %}
 
-<div class="flex items-center justify-between mb-4">
-  <div>
-    <h1 class="font-metric text-2xl font-bold" style="letter-spacing:0.03em">Workload Matrix</h1>
-    <p style="color:var(--text-muted);font-size:0.83rem;margin-top:2px">{{ workloads|length }} workloads</p>
+{# ── Filter bar ────────────────────────────────────────────────── #}
+<form method="get" action="/" id="filter-form" class="filter-bar">
+  <div class="filter-group">
+    <span class="filter-label">Search</span>
+    <input name="q" id="filter-q" class="filter-search"
+      placeholder="model, hw, fw, pic, notes…"
+      value="{{ filters.q or '' }}">
   </div>
-  {% if user %}
-  <button
-    onclick="document.getElementById('add-modal').classList.remove('hidden')"
-    class="badge badge-green"
-    style="cursor:pointer;padding:6px 14px;font-size:0.82rem">
-    + Add Workload
-  </button>
+  {% for key, label in [
+    ("model","Model"),("hardware","HW"),("framework","FW"),
+    ("precision","Precision"),("scenario","Scenario"),
+    ("status","Status"),("work_type","Type"),("pic","PIC")
+  ] %}
+  <div class="filter-group">
+    <span class="filter-label">{{ label }}</span>
+    <select name="{{ key }}" id="filter-{{ key }}"
+      class="filter-select {% if filters[key] %}active{% endif %}"
+      onchange="document.getElementById('filter-form').submit()">
+      <option value="">All</option>
+      {% if key == "status" %}
+        {% for v in ["not_started","config_search","accuracy_gate","internal_review","infmax_submitted","published"] %}
+          <option value="{{ v }}" {% if filters[key] == v %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      {% elif key == "work_type" %}
+        {% for v in ["tune","breadth_test"] %}
+          <option value="{{ v }}" {% if filters[key] == v %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      {% elif key == "pic" %}
+        {% for v in pic_options %}
+          <option value="{{ v }}" {% if filters[key] == v %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      {% else %}
+        {% for v in filter_options[key] %}
+          <option value="{{ v }}" {% if filters[key] == v %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      {% endif %}
+    </select>
+  </div>
+  {% endfor %}
+  <div class="filter-group" style="justify-content:flex-end">
+    <span class="filter-label">&nbsp;</span>
+    <a href="/" class="badge badge-muted" style="padding:5px 12px;text-decoration:none;font-size:0.78rem">&#x2715; Clear</a>
+  </div>
+</form>
+
+{# ── Stats bar ─────────────────────────────────────────────────── #}
+<div class="stats-bar">
+  <span>{{ stats.total }} workloads</span>
+  <span class="stat-submitted">{{ stats.submitted }} submitted</span>
+  <span class="stat-review">{{ stats.in_review }} in review</span>
+  <span class="stat-search">{{ stats.config_search }} config search</span>
+  <span style="color:var(--text-label)">{{ stats.not_started }} not started</span>
+  {% if not user %}
+    <span style="margin-left:auto;color:var(--text-label);font-size:0.76rem">
+      <a href="/auth/login" style="color:var(--blue)">Sign in</a> to edit
+    </span>
   {% endif %}
 </div>
 
-{% include "partials/filters.html" %}
-
+{# ── Workload matrix ───────────────────────────────────────────── #}
 <div style="overflow-x:auto">
   <table class="wl-table">
     <thead>
       <tr>
-        <th>Model</th><th>HW</th><th>Framework</th><th>Precision</th>
-        <th>Scenario · Seqlens</th><th>Status</th><th>PIC</th>
-        <th>NV TPS</th><th>AMD TPS</th><th>Gap</th>
-        <th>Accuracy</th><th>DLPerf</th><th>InfMax</th>
-        <th>Work Type</th><th>Study</th><th>IBDB</th><th>Config</th>
+        <th style="width:22px"></th>
+        <th>Seqlens</th>
+        <th>Status</th>
+        <th>PIC</th>
+        <th>Pri</th>
+        <th>Type</th>
+        <th>NV TPS</th>
+        <th>AMD TPS</th>
+        <th>Gap</th>
+        <th>InfMax</th>
+        <th>IBDB</th>
+        <th>Config</th>
       </tr>
     </thead>
     <tbody id="workload-tbody">
-      {% for w in workloads %}
-        {% include "partials/workload_row.html" %}
-      {% else %}
-        <tr><td colspan="18" style="text-align:center;color:var(--text-muted);padding:2rem">No workloads match the current filters.</td></tr>
+      {% if not groups %}
+        <tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:2rem">
+          No workloads match the current filters.
+        </td></tr>
+      {% endif %}
+
+      {% for group_key, rows in groups.items() %}
+        {% set gid = group_ids[group_key] %}
+        {% set model, hw, fw, prec, scenario = group_key %}
+        {# Compute group priority: min priority in group (ignoring None) #}
+        {% set gpriority = namespace(val=None) %}
+        {% for r in rows %}
+          {% if r.priority %}
+            {% if gpriority.val is none or r.priority < gpriority.val %}
+              {% set gpriority.val = r.priority %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {% set pcls = "p" ~ gpriority.val if gpriority.val else "" %}
+
+        {# ── Group header ── #}
+        <tr class="wl-group-header {{ pcls }}" data-group="{{ gid }}">
+          <td colspan="12">
+            <div style="display:flex;align-items:center;gap:0.5rem">
+              <button class="group-toggle" data-group-toggle="{{ gid }}" data-open="1"
+                onclick="toggleGroup('{{ gid }}');event.stopPropagation()"
+                title="Collapse group">&#9662;</button>
+              <span style="color:var(--text);font-weight:500">{{ model }}</span>
+              <span style="color:var(--border)">&#183;</span>
+              <span style="color:var(--text-muted)">{{ hw }}</span>
+              <span style="color:var(--border)">&#183;</span>
+              <span style="color:var(--text-muted)">{{ fw }}</span>
+              <span style="color:var(--border)">&#183;</span>
+              <span style="color:var(--text-muted)">{{ prec }}</span>
+              <span style="color:var(--border)">&#183;</span>
+              <span style="color:var(--text-muted)">{{ scenario }}</span>
+              <span style="margin-left:auto;display:flex;align-items:center;gap:0.5rem">
+                {% if gpriority.val %}
+                  <span class="badge badge-p{{ gpriority.val }}">P{{ gpriority.val }}</span>
+                {% endif %}
+                <span style="color:var(--text-label);font-size:0.75rem">{{ rows|length }} row{{ "s" if rows|length != 1 }}</span>
+              </span>
+            </div>
+          </td>
+        </tr>
+
+        {# ── Data rows for this group ── #}
+        {% for w in rows %}
+          {% set gap_class = "gap-win" if w.gap_pct is not none and w.gap_pct >= 0 else ("gap-behind" if w.gap_pct is not none else "gap-even") %}
+          <tr class="wl-row wl-member" id="row-{{ w.id }}" data-group-member="{{ gid }}">
+
+            {# expand button #}
+            <td style="width:22px;padding-right:0">
+              <button class="expand-btn" id="expand-btn-{{ w.id }}"
+                hx-get="/workloads/{{ w.id }}/expand"
+                hx-target="#expand-content-{{ w.id }}"
+                hx-swap="innerHTML"
+                hx-trigger="click[!this.classList.contains('loaded')] once"
+                onclick="toggleExpand('{{ w.id }}')"
+                title="Expand details">&#9654;</button>
+            </td>
+
+            {# seqlens — editable #}
+            <td style="font-size:0.80rem;font-family:'Rajdhani',sans-serif;letter-spacing:0.03em">
+              {% if user %}
+                <span class="editable-field"
+                  hx-get="/workloads/{{ w.id }}/seqlens/edit"
+                  hx-trigger="click" hx-target="this" hx-swap="outerHTML"
+                  title="Edit seqlens">{{ w.seqlens }}</span>
+              {% else %}
+                <span class="locked-field" title="Sign in to edit">{{ w.seqlens }}</span>
+              {% endif %}
+            </td>
+
+            {# status — editable badge #}
+            <td>
+              {% if user %}
+                <span class="editable-field"
+                  hx-get="/workloads/{{ w.id }}/status/edit"
+                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+                  {% if w.status == "published" %}<span class="badge badge-green">{{ w.status }}</span>
+                  {% elif w.status == "accuracy_gate" %}<span class="badge badge-amber">{{ w.status }}</span>
+                  {% elif w.status == "not_started" or not w.status %}<span class="badge badge-muted">{{ w.status or "not_started" }}</span>
+                  {% else %}<span class="badge badge-blue">{{ w.status }}</span>
+                  {% endif %}
+                </span>
+              {% else %}
+                {% if w.status == "published" %}<span class="badge badge-green">{{ w.status }}</span>
+                {% elif w.status == "accuracy_gate" %}<span class="badge badge-amber">{{ w.status }}</span>
+                {% elif w.status == "not_started" or not w.status %}<span class="badge badge-muted">{{ w.status or "not_started" }}</span>
+                {% else %}<span class="badge badge-blue">{{ w.status }}</span>
+                {% endif %}
+              {% endif %}
+            </td>
+
+            {# pic — editable #}
+            <td>
+              {% if user %}
+                <span class="editable-field"
+                  hx-get="/workloads/{{ w.id }}/pic/edit"
+                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+                  {% if w.pic %}<span>{{ w.pic }}</span>
+                  {% else %}<span style="color:var(--amber);font-size:0.78rem">&#9888; unassigned</span>{% endif %}
+                </span>
+              {% else %}
+                {% if w.pic %}<span>{{ w.pic }}</span>
+                {% else %}<span style="color:var(--amber);font-size:0.78rem">&#9888; unassigned</span>{% endif %}
+              {% endif %}
+            </td>
+
+            {# priority — editable #}
+            <td>
+              {% if user %}
+                <span class="editable-field"
+                  hx-get="/workloads/{{ w.id }}/priority/edit"
+                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+                  {% if w.priority %}<span class="badge badge-p{{ w.priority }}">P{{ w.priority }}</span>
+                  {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
+                </span>
+              {% else %}
+                {% if w.priority %}<span class="badge badge-p{{ w.priority }}">P{{ w.priority }}</span>
+                {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
+              {% endif %}
+            </td>
+
+            {# work_type — editable #}
+            <td>
+              {% if user %}
+                <span class="editable-field"
+                  hx-get="/workloads/{{ w.id }}/work_type/edit"
+                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+                  {% if w.work_type == "breadth_test" %}<span class="badge badge-blue">{{ w.work_type }}</span>
+                  {% elif w.work_type %}<span class="badge badge-muted">{{ w.work_type }}</span>
+                  {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
+                </span>
+              {% else %}
+                {% if w.work_type == "breadth_test" %}<span class="badge badge-blue">{{ w.work_type }}</span>
+                {% elif w.work_type %}<span class="badge badge-muted">{{ w.work_type }}</span>
+                {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
+              {% endif %}
+            </td>
+
+            {# nv_tps — editable #}
+            <td class="font-metric">
+              {% if user %}
+                <span class="editable-field"
+                  hx-get="/workloads/{{ w.id }}/nv_tps/edit"
+                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+                  {% if w.nv_tps is not none %}{{ "%.0f"|format(w.nv_tps) }}{% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
+                </span>
+              {% else %}
+                {% if w.nv_tps is not none %}{{ "%.0f"|format(w.nv_tps) }}{% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
+              {% endif %}
+            </td>
+
+            {# amd_tps — editable #}
+            <td class="font-metric">
+              {% if user %}
+                <span class="editable-field"
+                  hx-get="/workloads/{{ w.id }}/amd_tps/edit"
+                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+                  {% if w.amd_tps is not none %}{{ "%.0f"|format(w.amd_tps) }}{% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
+                </span>
+              {% else %}
+                {% if w.amd_tps is not none %}{{ "%.0f"|format(w.amd_tps) }}{% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
+              {% endif %}
+            </td>
+
+            {# gap — computed, not editable #}
+            <td class="font-metric {{ gap_class }}">
+              {% if w.gap_pct is not none %}{{ "%+.1f"|format(w.gap_pct * 100) }}%
+              {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
+            </td>
+
+            {# infmax_submitted — editable #}
+            <td>
+              {% if user %}
+                <span class="editable-field"
+                  hx-get="/workloads/{{ w.id }}/infmax_submitted/edit"
+                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+                  {% if w.infmax_submitted %}<span class="badge badge-green">&#10003; {{ w.infmax_submitted }}</span>
+                  {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
+                </span>
+              {% else %}
+                {% if w.infmax_submitted %}<span class="badge badge-green">&#10003; {{ w.infmax_submitted }}</span>
+                {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
+              {% endif %}
+            </td>
+
+            {# ibdb_link — editable #}
+            <td>
+              {% if user %}
+                <span class="editable-field"
+                  hx-get="/workloads/{{ w.id }}/ibdb_link/edit"
+                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+                  {% if w.ibdb_link %}<a href="{{ w.ibdb_link }}" target="_blank" rel="noopener"
+                    style="color:var(--blue);text-decoration:none;font-size:0.78rem" onclick="event.stopPropagation()">IBDB &#8599;</a>
+                  {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
+                </span>
+              {% else %}
+                {% if w.ibdb_link %}<a href="{{ w.ibdb_link }}" target="_blank" rel="noopener"
+                  style="color:var(--blue);text-decoration:none;font-size:0.78rem">IBDB &#8599;</a>
+                {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
+              {% endif %}
+            </td>
+
+            {# config — read-only link #}
+            <td>
+              {% set cv = latest_configs.get(w.id) if latest_configs else None %}
+              {% if cv %}
+                <a href="/workloads/{{ w.id }}" style="color:var(--blue);font-size:0.78rem;text-decoration:none">v{{ cv }} &#8594;</a>
+              {% else %}
+                <a href="/workloads/{{ w.id }}" style="color:var(--text-label);font-size:0.78rem;text-decoration:none">detail &#8594;</a>
+              {% endif %}
+            </td>
+          </tr>
+
+          {# ── Expand / detail row (lazy-loaded, hidden by default) ── #}
+          <tr class="detail-row hidden" id="expand-row-{{ w.id }}" data-group-member="{{ gid }}">
+            <td colspan="12">
+              <div id="expand-content-{{ w.id }}" class="detail-panel">
+                <div style="color:var(--text-muted);font-size:0.80rem">Loading&#8230;</div>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
       {% endfor %}
     </tbody>
   </table>
 </div>
 
+{# ── Add workload modal (auth-gated) ───────────────────────────── #}
 {% if user %}
 <div id="add-modal" class="hidden fixed inset-0 flex items-center justify-center" style="background:rgba(0,0,0,0.6);z-index:100">
   <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem;width:480px">
@@ -68,5 +341,33 @@
   </div>
 </div>
 {% endif %}
+
+<script>
+// ── Group collapse ───────────────────────────────────────────────
+function toggleGroup(gid) {
+  const btn = document.querySelector(`[data-group-toggle="${gid}"]`);
+  const isOpen = btn.dataset.open === "1";
+  document.querySelectorAll(`[data-group-member="${gid}"]`).forEach(r => {
+    r.classList.toggle('hidden', isOpen);
+  });
+  btn.dataset.open = isOpen ? "0" : "1";
+  btn.textContent = isOpen ? "\u25B8" : "\u25BE";
+}
+
+// ── Row expand ───────────────────────────────────────────────────
+function toggleExpand(id) {
+  const row = document.getElementById('expand-row-' + id);
+  const btn = document.getElementById('expand-btn-' + id);
+  const opening = row.classList.toggle('hidden');
+  // opening==true means we just hid it (toggle returns true if class was ADDED)
+  if (!opening) {
+    btn.classList.add('open');
+    btn.textContent = '\u25BE';
+  } else {
+    btn.classList.remove('open');
+    btn.textContent = '\u25B6';
+  }
+}
+</script>
 
 {% endblock %}

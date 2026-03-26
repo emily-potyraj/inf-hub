@@ -1,11 +1,12 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Workload, AuditLog
+from app.models import Workload, AuditLog, TeamFunction
 from app.schemas import WorkloadCreate, WorkloadRow, FieldUpdate
 from app.auth import require_auth, get_current_user
 from app import audit as audit_service
@@ -15,28 +16,31 @@ router = APIRouter(prefix="/workloads", tags=["workloads"])
 EDITABLE_FIELDS = {
     "status", "pic", "priority", "story_label", "accuracy_status",
     "nv_tps", "amd_tps", "dl_perf_published", "infmax_submitted",
-    "nvmax_recipe_url", "ibdb_link", "notes", "work_type",
+    "nvmax_recipe_url", "ibdb_link", "notes", "work_type", "seqlens",
 }
 
 FIELD_TYPES = {
     "status": "select",
     "accuracy_status": "select",
-    "pic": "text",
-    "priority": "number",
+    "pic": "select",
+    "priority": "select",
     "story_label": "text",
     "nv_tps": "number",
     "amd_tps": "number",
     "dl_perf_published": "text",
-    "infmax_submitted": "text",
+    "infmax_submitted": "select",
     "nvmax_recipe_url": "text",
     "ibdb_link": "text",
-    "notes": "text",
+    "notes": "textarea",
     "work_type": "select",
+    "seqlens": "text",
 }
 
 STATUS_OPTIONS = ["not_started", "config_search", "accuracy_gate", "internal_review", "infmax_submitted", "published"]
 ACCURACY_OPTIONS = ["not_run", "pass", "fail", "unknown"]
 WORK_TYPE_OPTIONS = ["tune", "breadth_test"]
+PRIORITY_OPTIONS = ["1", "2", "3", "4", "5", ""]
+INFMAX_OPTIONS = ["", "yes", "staged"]
 
 _templates = Jinja2Templates(directory="app/templates")
 
@@ -53,6 +57,72 @@ def _to_row(w: Workload) -> WorkloadRow:
     if w.last_updated:
         d["last_updated"] = w.last_updated.isoformat()
     return WorkloadRow(**d)
+
+
+def _field_cell_html(workload_id: int, field: str, value) -> str:
+    """Return the styled display span for a field after a PATCH update."""
+    base = (
+        f'<span class="editable-field" '
+        f'hx-get="/workloads/{workload_id}/{field}/edit" '
+        f'hx-trigger="click" hx-target="this" hx-swap="outerHTML">'
+    )
+    end = '</span>'
+
+    if field == "status":
+        if value == "published":
+            inner = f'<span class="badge badge-green">{value}</span>'
+        elif value == "accuracy_gate":
+            inner = f'<span class="badge badge-amber">{value}</span>'
+        elif value == "not_started" or not value:
+            inner = f'<span class="badge badge-muted">{value or "not_started"}</span>'
+        else:
+            inner = f'<span class="badge badge-blue">{value}</span>'
+        return base + inner + end
+
+    if field == "work_type":
+        if value == "breadth_test":
+            inner = f'<span class="badge badge-blue">{value}</span>'
+        elif value:
+            inner = f'<span class="badge badge-muted">{value}</span>'
+        else:
+            inner = '<span style="color:var(--text-label)">—</span>'
+        return base + inner + end
+
+    if field == "pic":
+        if value:
+            inner = f'<span>{value}</span>'
+        else:
+            inner = '<span style="color:var(--amber);font-size:0.78rem">⚠ unassigned</span>'
+        return base + inner + end
+
+    if field == "priority":
+        if value:
+            p = str(value)
+            badge_cls = {
+                "1": "badge-p1",
+                "2": "badge-p2",
+                "3": "badge-p3",
+                "4": "badge-p4",
+                "5": "badge-p5",
+            }.get(p, "badge-muted")
+            inner = f'<span class="badge {badge_cls}">P{p}</span>'
+        else:
+            inner = '<span style="color:var(--text-label)">—</span>'
+        return base + inner + end
+
+    if field == "infmax_submitted":
+        if value:
+            inner = f'<span class="badge badge-green">✓ {value}</span>'
+        else:
+            inner = '<span style="color:var(--text-label)">—</span>'
+        return base + inner + end
+
+    # seqlens and other text fields
+    if value is not None and str(value).strip():
+        inner = f'<span style="color:var(--text-muted)">{value}</span>'
+    else:
+        inner = '<span style="color:var(--text-label)">—</span>'
+    return base + inner + end
 
 
 @router.get("", response_model=list[WorkloadRow])
@@ -120,6 +190,30 @@ def create_workload(
     return row
 
 
+@router.get("/{workload_id}/expand")
+async def expand_workload(
+    request: Request,
+    workload_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    w = db.get(Workload, workload_id)
+    if not w:
+        raise HTTPException(status_code=404, detail="Not found")
+    row = _to_row(w)
+    audit = (
+        db.query(AuditLog)
+        .filter(AuditLog.workload_id == workload_id)
+        .order_by(AuditLog.timestamp.desc())
+        .limit(5)
+        .all()
+    )
+    return _templates.TemplateResponse(
+        "partials/workload_row_expand.html",
+        {"request": request, "w": row, "audit": audit, "user": user},
+    )
+
+
 @router.get("/{workload_id}", response_model=WorkloadRow)
 def get_workload(workload_id: int, db: Session = Depends(get_db)):
     w = db.get(Workload, workload_id)
@@ -154,14 +248,7 @@ def update_field(
         raise
     db.refresh(w)
     if request.headers.get("HX-Request"):
-        from fastapi.responses import HTMLResponse
-        display = str(payload.value) if payload.value is not None else "—"
-        return HTMLResponse(
-            f'<span class="editable-field" '
-            f'hx-get="/workloads/{workload_id}/{field}/edit" '
-            f'hx-trigger="click" hx-target="this" hx-swap="outerHTML">'
-            f'{display}</span>'
-        )
+        return HTMLResponse(_field_cell_html(workload_id, field, payload.value))
     return _to_row(w)
 
 
@@ -186,8 +273,66 @@ def edit_field_widget(
             options = STATUS_OPTIONS
         elif field == "work_type":
             options = WORK_TYPE_OPTIONS
+        elif field == "accuracy_status":
+            options = ACCURACY_OPTIONS
+        elif field == "priority":
+            options = PRIORITY_OPTIONS
+            current_str = str(current) if current is not None else ""
+            opts_html = "".join(
+                f'<option value="{o}" {"selected" if o == current_str else ""}>{o if o else "—"}</option>'
+                for o in options
+            )
+            html = (
+                f'<select class="edit-input"'
+                f' hx-patch="/workloads/{workload_id}/{field}"'
+                f' hx-vals=\'js:{{"value": event.target.value || null}}\''
+                f' hx-trigger="change"'
+                f' hx-target="this"'
+                f' hx-swap="outerHTML">{opts_html}</select>'
+            )
+            return HTMLResponse(html)
+        elif field == "infmax_submitted":
+            options = INFMAX_OPTIONS
+            opts_html = "".join(
+                f'<option value="{o}" {"selected" if o == (current or "") else ""}>{o if o else "—"}</option>'
+                for o in options
+            )
+            html = (
+                f'<select class="edit-input"'
+                f' hx-patch="/workloads/{workload_id}/{field}"'
+                f' hx-vals=\'js:{{"value": event.target.value || null}}\''
+                f' hx-trigger="change"'
+                f' hx-target="this"'
+                f' hx-swap="outerHTML">{opts_html}</select>'
+            )
+            return HTMLResponse(html)
+        elif field == "pic":
+            # Query team members for pic options
+            team_members = db.query(TeamFunction).all()
+            pic_set = set()
+            for tf in team_members:
+                if tf.owner:
+                    pic_set.add(tf.owner)
+                if tf.backup:
+                    pic_set.add(tf.backup)
+            pic_list = sorted(pic_set)
+            opts_html = f'<option value="" {"selected" if not current else ""}>— unassigned</option>'
+            opts_html += "".join(
+                f'<option value="{p}" {"selected" if p == current else ""}>{p}</option>'
+                for p in pic_list
+            )
+            html = (
+                f'<select class="edit-input"'
+                f' hx-patch="/workloads/{workload_id}/{field}"'
+                f' hx-vals=\'js:{{"value": event.target.value || null}}\''
+                f' hx-trigger="change"'
+                f' hx-target="this"'
+                f' hx-swap="outerHTML">{opts_html}</select>'
+            )
+            return HTMLResponse(html)
         else:
             options = ACCURACY_OPTIONS
+
         opts_html = "".join(
             f'<option value="{o}" {"selected" if o == current else ""}>{o}</option>'
             for o in options
@@ -200,6 +345,17 @@ def edit_field_widget(
             f' hx-target="this"'
             f' hx-swap="outerHTML">{opts_html}</select>'
         )
+    elif field_type == "textarea":
+        escaped = (current or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        html = (
+            f'<textarea class="edit-input" rows="3"'
+            f' hx-patch="/workloads/{workload_id}/{field}"'
+            f' hx-vals=\'js:{{"value": event.target.value}}\''
+            f' hx-trigger="blur"'
+            f' hx-target="this"'
+            f' hx-swap="outerHTML"'
+            f' autofocus>{escaped}</textarea>'
+        )
     else:
         html = (
             f'<input class="edit-input" type="{field_type}" value="{current or ""}"'
@@ -210,7 +366,6 @@ def edit_field_widget(
             f' hx-swap="outerHTML"'
             f' autofocus>'
         )
-    from fastapi.responses import HTMLResponse
     return HTMLResponse(html)
 
 

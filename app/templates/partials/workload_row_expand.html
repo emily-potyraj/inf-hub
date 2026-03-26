@@ -1,0 +1,79 @@
+<div class="detail-panel">
+  <div class="detail-col">
+    <div>
+      <div class="detail-label">Notes</div>
+      {% if user is defined and user %}
+        <span class="editable-field detail-val"
+          style="display:block;min-height:1.5em;white-space:pre-wrap"
+          hx-get="/workloads/{{ w.id }}/notes/edit"
+          hx-trigger="click" hx-target="this" hx-swap="outerHTML">{{ w.notes or "&#8212;" }}</span>
+      {% else %}
+        <span class="detail-val" style="white-space:pre-wrap">{{ w.notes or "&#8212;" }}</span>
+      {% endif %}
+    </div>
+    <div>
+      <div class="detail-label">Story Label</div>
+      {% if user is defined and user %}
+        <span class="editable-field detail-val"
+          hx-get="/workloads/{{ w.id }}/story_label/edit"
+          hx-trigger="click" hx-target="this" hx-swap="outerHTML">{{ w.story_label or "&#8212;" }}</span>
+      {% else %}
+        <span class="detail-val">{{ w.story_label or "&#8212;" }}</span>
+      {% endif %}
+    </div>
+    <div>
+      <div class="detail-label">Accuracy</div>
+      {% if user is defined and user %}
+        <span class="editable-field"
+          hx-get="/workloads/{{ w.id }}/accuracy_status/edit"
+          hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+          {% if w.accuracy_status == "pass" %}<span class="badge badge-green">pass</span>
+          {% elif w.accuracy_status == "fail" %}<span class="badge badge-red">fail</span>
+          {% else %}<span class="badge badge-muted">{{ w.accuracy_status or "not_run" }}</span>{% endif %}
+        </span>
+      {% else %}
+        {% if w.accuracy_status == "pass" %}<span class="badge badge-green">pass</span>
+        {% elif w.accuracy_status == "fail" %}<span class="badge badge-red">fail</span>
+        {% else %}<span class="badge badge-muted">{{ w.accuracy_status or "not_run" }}</span>{% endif %}
+      {% endif %}
+    </div>
+    {% if w.study_id %}
+    <div>
+      <div class="detail-label">Study ID</div>
+      <span class="detail-val" title="{{ w.study_id }}">{{ w.study_id[:8] }}&#8230;</span>
+    </div>
+    {% endif %}
+    <div style="margin-top:4px">
+      <a href="/workloads/{{ w.id }}" style="color:var(--blue);font-size:0.80rem;text-decoration:none">
+        Full detail page &#8594;
+      </a>
+    </div>
+  </div>
+
+  <div class="detail-col">
+    <div>
+      <div class="detail-label">Timeline</div>
+      <div class="detail-val">
+        Created: {{ (w.created_at | string)[:16] if w.created_at else "&#8212;" }}
+      </div>
+      <div class="detail-val">
+        Updated: {{ (w.last_updated | string)[:16] if w.last_updated else "&#8212;" }}
+      </div>
+    </div>
+    <div>
+      <div class="detail-label">Audit Trail</div>
+      {% if audit %}
+        {% for entry in audit %}
+          <div class="audit-entry">
+            <span style="color:var(--text)">{{ entry.field_name }}</span>
+            <span style="color:var(--text-label)"> {{ entry.old_value or "&#8709;" }} &#8594; </span>
+            <span style="color:var(--text)">{{ entry.new_value or "&#8709;" }}</span>
+            <span style="color:var(--text-label);float:right">{{ entry.user_name }} &#183; {{ entry.timestamp.isoformat()[:10] if entry.timestamp else "" }}</span>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="detail-val">No edits recorded yet.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
