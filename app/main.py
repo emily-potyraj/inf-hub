@@ -1,7 +1,8 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from collections import defaultdict
+import re
+from collections import defaultdict, OrderedDict
 from datetime import datetime, timezone, timedelta
 
 from fastapi import FastAPI, Request, Depends
@@ -16,6 +17,7 @@ from app.models import Workload, ConfigVersion, AuditLog, TeamFunction
 from app.auth import get_current_user
 from app.routers import workloads as workloads_router, configs, team, auth_router
 from app.routers import breadth_studies as breadth_studies_router
+from app.routers import devzone as devzone_router
 from app.routers.workloads import _to_row
 
 app = FastAPI(title="inf-hub")
@@ -27,6 +29,13 @@ app.include_router(configs.router)
 app.include_router(team.router)
 app.include_router(auth_router.router)
 app.include_router(breadth_studies_router.router)
+app.include_router(devzone_router.router)
+
+
+def _group_id(key: tuple) -> str:
+    """Convert a group key tuple to a URL-safe HTML id string."""
+    joined = "-".join(str(k) for k in key if k)
+    return re.sub(r"[^a-z0-9]+", "-", joined.lower()).strip("-")
 
 
 @app.get("/")
@@ -38,24 +47,100 @@ def index(
     story_label: str = None,
     amd_ahead: bool = None,
     unassigned_pic: bool = None,
+    model: str = None,
+    precision: str = None,
+    scenario: str = None,
+    work_type: str = None,
+    pic: str = None,
+    q: str = None,
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    q = db.query(Workload)
-    if hardware:
-        q = q.filter(Workload.hardware == hardware)
-    if framework:
-        q = q.filter(Workload.framework == framework)
-    if status:
-        q = q.filter(Workload.status == status)
-    if story_label:
-        q = q.filter(Workload.story_label == story_label)
-    if unassigned_pic:
-        q = q.filter(Workload.pic.is_(None))
+    # Fetch all workloads (unfiltered for filter_options)
+    all_workloads = db.query(Workload).all()
+    all_rows = [_to_row(w) for w in all_workloads]
 
-    rows = [_to_row(w) for w in q.all()]
+    # Build filter options from full unfiltered dataset
+    filter_options = {
+        "model": sorted(set(r.model for r in all_rows if r.model)),
+        "hardware": sorted(set(r.hardware for r in all_rows if r.hardware)),
+        "framework": sorted(set(r.framework for r in all_rows if r.framework)),
+        "precision": sorted(set(r.precision for r in all_rows if r.precision)),
+        "scenario": sorted(set(r.scenario for r in all_rows if r.scenario)),
+    }
+
+    # Get pic options from TeamFunction
+    team_members = db.query(TeamFunction).all()
+    pic_set = set()
+    for tf in team_members:
+        if tf.owner:
+            pic_set.add(tf.owner)
+        if tf.backup:
+            pic_set.add(tf.backup)
+    pic_options = sorted(pic_set)
+
+    # Apply filters
+    rows = all_rows
+    if hardware:
+        rows = [r for r in rows if r.hardware == hardware]
+    if framework:
+        rows = [r for r in rows if r.framework == framework]
+    if status:
+        rows = [r for r in rows if r.status == status]
+    if story_label:
+        rows = [r for r in rows if r.story_label == story_label]
+    if model:
+        rows = [r for r in rows if r.model == model]
+    if precision:
+        rows = [r for r in rows if r.precision == precision]
+    if scenario:
+        rows = [r for r in rows if r.scenario == scenario]
+    if work_type:
+        rows = [r for r in rows if r.work_type == work_type]
+    if pic:
+        rows = [r for r in rows if r.pic == pic]
+    if unassigned_pic:
+        rows = [r for r in rows if r.pic is None]
     if amd_ahead:
         rows = [r for r in rows if r.gap_pct is not None and r.gap_pct < 0]
+    if q:
+        q_lower = q.lower()
+        rows = [
+            r for r in rows
+            if any(
+                q_lower in str(v or "").lower()
+                for v in [r.model, r.hardware, r.framework, r.precision,
+                          r.scenario, r.seqlens, r.pic, r.notes]
+            )
+        ]
+
+    # Build groups: OrderedDict keyed by (model, hardware, framework, precision, scenario)
+    # Sort rows first: by priority asc (None last), then identity fields alphabetically
+    def sort_key(r):
+        pri = r.priority if r.priority is not None else 9999
+        return (pri, r.model or "", r.hardware or "", r.framework or "",
+                r.precision or "", r.scenario or "")
+
+    rows_sorted = sorted(rows, key=sort_key)
+
+    groups: OrderedDict = OrderedDict()
+    for r in rows_sorted:
+        key = (r.model, r.hardware, r.framework, r.precision, r.scenario)
+        if key not in groups:
+            groups[key] = []
+        groups[key].append(r)
+
+    # Generate group_ids
+    group_ids = {key: _group_id(key) for key in groups}
+
+    # Compute stats from filtered rows
+    stats = {
+        "total": len(rows),
+        "submitted": sum(1 for r in rows if r.infmax_submitted == "yes"),
+        "in_review": sum(1 for r in rows if r.status == "internal_review"),
+        "config_search": sum(1 for r in rows if r.status == "config_search"),
+        "not_started": sum(1 for r in rows if r.status == "not_started"),
+    }
 
     stale_threshold = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
 
@@ -69,14 +154,28 @@ def index(
     return templates.TemplateResponse("index.html", {
         "request": request,
         "workloads": rows,
+        "groups": groups,
+        "group_ids": group_ids,
+        "filter_options": filter_options,
+        "pic_options": pic_options,
         "user": user,
         "filters": {
-            "hardware": hardware, "framework": framework,
-            "status": status, "story_label": story_label,
-            "amd_ahead": amd_ahead, "unassigned_pic": unassigned_pic,
+            "hardware": hardware,
+            "framework": framework,
+            "status": status,
+            "story_label": story_label,
+            "amd_ahead": amd_ahead,
+            "unassigned_pic": unassigned_pic,
+            "model": model,
+            "precision": precision,
+            "scenario": scenario,
+            "work_type": work_type,
+            "pic": pic,
+            "q": q,
         },
         "stale_threshold": stale_threshold,
         "latest_configs": latest_configs,
+        "stats": stats,
     })
 
 
