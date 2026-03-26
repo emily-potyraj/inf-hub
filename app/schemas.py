@@ -21,6 +21,8 @@ class WorkloadCreate(BaseModel):
     nvmax_recipe_url: Optional[str] = None
     ibdb_link: Optional[str] = None
     notes: Optional[str] = None
+    work_type: Optional[str] = None
+    study_id: Optional[str] = None
 
 
 class WorkloadRow(BaseModel):
@@ -44,9 +46,38 @@ class WorkloadRow(BaseModel):
     nvmax_recipe_url: Optional[str]
     ibdb_link: Optional[str]
     notes: Optional[str]
+    work_type: Optional[str] = None
+    study_id: Optional[str] = None
     last_updated: Optional[str]
 
     model_config = {"from_attributes": True}
+
+
+class BreadthStudyCreate(BaseModel):
+    name:       str
+    models:     list[str]
+    hardware:   list[str]
+    frameworks: list[str]
+    precisions: list[str]
+    scenarios:  list[str]
+    seqlens:    list[str]
+
+
+class BreadthStudyRow(BaseModel):
+    id:               str
+    name:             str
+    created_by:       Optional[str]
+    created_by_email: Optional[str]
+    created_at:       Optional[str]   # ISO string
+    workload_count:   int
+
+    model_config = {"from_attributes": True}
+
+
+class BreadthStudyResponse(BaseModel):
+    study_id: str
+    created:  int
+    skipped:  int
 
 
 class FieldUpdate(BaseModel):

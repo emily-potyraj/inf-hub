@@ -48,6 +48,36 @@
   <td>{% if w.dl_perf_published %}<span class="badge badge-green">✓ {{ w.dl_perf_published }}</span>{% else %}<span style="color:var(--text-label)">—</span>{% endif %}</td>
   <td>{% if w.infmax_submitted %}<span class="badge badge-green">✓ {{ w.infmax_submitted }}</span>{% else %}<span style="color:var(--text-label)">—</span>{% endif %}</td>
   <td>
-    <a href="/workloads/{{ w.id }}" style="color:var(--blue);font-size:0.78rem;text-decoration:none">detail →</a>
+    {% if w.work_type %}
+      <span class="badge badge-blue editable-field"
+        hx-get="/workloads/{{ w.id }}/work_type/edit"
+        hx-trigger="click" hx-target="this" hx-swap="outerHTML">{{ w.work_type }}</span>
+    {% else %}
+      <span class="editable-field" style="color:var(--text-label);font-size:0.78rem"
+        hx-get="/workloads/{{ w.id }}/work_type/edit"
+        hx-trigger="click" hx-target="this" hx-swap="outerHTML">—</span>
+    {% endif %}
+  </td>
+  <td>
+    {% if w.study_id %}
+      <span class="badge badge-amber" title="{{ w.study_id }}" style="max-width:80px;overflow:hidden;text-overflow:ellipsis">{{ w.study_id[:8] }}</span>
+    {% else %}
+      <span style="color:var(--text-label)">—</span>
+    {% endif %}
+  </td>
+  <td>
+    {% if w.ibdb_link %}
+      <a href="{{ w.ibdb_link }}" target="_blank" rel="noopener" style="color:var(--blue);font-size:0.78rem;text-decoration:none">IBDB →</a>
+    {% else %}
+      <span style="color:var(--text-label)">—</span>
+    {% endif %}
+  </td>
+  <td>
+    {% set cv = latest_configs.get(w.id) if latest_configs else None %}
+    {% if cv %}
+      <a href="/workloads/{{ w.id }}?config={{ cv }}" style="color:var(--blue);font-size:0.78rem;text-decoration:none">v{{ cv }} →</a>
+    {% else %}
+      <a href="/workloads/{{ w.id }}" style="color:var(--blue);font-size:0.78rem;text-decoration:none">detail →</a>
+    {% endif %}
   </td>
 </tr>

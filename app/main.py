@@ -9,10 +9,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from sqlalchemy import func
+
 from app.database import get_db
 from app.models import Workload, ConfigVersion, AuditLog, TeamFunction
 from app.auth import get_current_user
 from app.routers import workloads as workloads_router, configs, team, auth_router
+from app.routers import breadth_studies as breadth_studies_router
 from app.routers.workloads import _to_row
 
 app = FastAPI(title="inf-hub")
@@ -23,6 +26,7 @@ app.include_router(workloads_router.router)
 app.include_router(configs.router)
 app.include_router(team.router)
 app.include_router(auth_router.router)
+app.include_router(breadth_studies_router.router)
 
 
 @app.get("/")
@@ -55,6 +59,13 @@ def index(
 
     stale_threshold = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
 
+    config_subq = (
+        db.query(ConfigVersion.workload_id, func.max(ConfigVersion.version_num).label("max_v"))
+        .group_by(ConfigVersion.workload_id)
+        .all()
+    )
+    latest_configs = {row.workload_id: row.max_v for row in config_subq}
+
     return templates.TemplateResponse("index.html", {
         "request": request,
         "workloads": rows,
@@ -65,7 +76,24 @@ def index(
             "amd_ahead": amd_ahead, "unassigned_pic": unassigned_pic,
         },
         "stale_threshold": stale_threshold,
+        "latest_configs": latest_configs,
     })
+
+
+@app.get("/add")
+def add_page(
+    request: Request,
+    user=Depends(get_current_user),
+):
+    return templates.TemplateResponse("add.html", {"request": request, "user": user})
+
+
+@app.get("/overview")
+def overview_page(
+    request: Request,
+    user=Depends(get_current_user),
+):
+    return templates.TemplateResponse("overview.html", {"request": request, "user": user})
 
 
 @app.get("/workloads/{workload_id}")

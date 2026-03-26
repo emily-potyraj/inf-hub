@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}inf-hub — Overview{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="font-metric text-2xl font-bold" style="letter-spacing:0.03em">Overview</h1>
+    <p style="color:var(--text-muted);font-size:0.83rem;margin-top:2px">How inf-hub fits into the inference benchmarking pipeline</p>
+  </div>
+</div>
+
+<!-- Section 1: Pipeline diagram -->
+<section style="margin-bottom:3rem">
+  <h2 class="font-metric font-bold mb-4" style="font-size:1.1rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">Pipeline</h2>
+
+  <div style="display:flex;flex-direction:column;align-items:flex-start;gap:0;max-width:480px">
+
+    <!-- Node 1: Engineers bench -->
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.75rem 1.25rem;width:100%">
+      <p style="margin:0;font-weight:600;font-size:0.9rem">Engineers Bench</p>
+      <p style="margin:2px 0 0;font-size:0.78rem;color:var(--text-muted)">Run experiments, collect TPS numbers</p>
+    </div>
+
+    <!-- Arrow -->
+    <div style="display:flex;flex-direction:column;align-items:center;width:100%;padding:4px 0">
+      <div style="width:2px;height:16px;background:var(--border)"></div>
+      <div style="font-size:0.7rem;color:var(--text-label)">▼</div>
+    </div>
+
+    <!-- Node 2: IBDB -->
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.75rem 1.25rem;width:100%">
+      <p style="margin:0;font-weight:600;font-size:0.9rem">IBDB</p>
+      <p style="margin:2px 0 0;font-size:0.78rem;color:var(--text-muted)">Internal benchmark database — source of record for raw results</p>
+    </div>
+
+    <!-- Arrow -->
+    <div style="display:flex;flex-direction:column;align-items:center;width:100%;padding:4px 0">
+      <div style="width:2px;height:16px;background:var(--border)"></div>
+      <div style="font-size:0.7rem;color:var(--text-label)">▼</div>
+    </div>
+
+    <!-- Node 3: inf-hub (highlighted — you are here) -->
+    <div style="background:var(--green-bg);border:2px solid var(--green);border-radius:8px;padding:0.75rem 1.25rem;width:100%;position:relative">
+      <span style="position:absolute;top:-10px;right:12px;background:var(--green);color:#000;font-size:0.65rem;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:0.05em">YOU ARE HERE</span>
+      <p style="margin:0;font-weight:700;font-size:0.9rem;color:var(--green)">inf-hub Workloads</p>
+      <p style="margin:2px 0 0;font-size:0.78rem;color:var(--text-muted)">Track workload status, configs, accuracy, assignments, and history</p>
+    </div>
+
+    <!-- Arrow -->
+    <div style="display:flex;flex-direction:column;align-items:center;width:100%;padding:4px 0">
+      <div style="width:2px;height:16px;background:var(--border)"></div>
+      <div style="font-size:0.7rem;color:var(--text-label)">▼</div>
+    </div>
+
+    <!-- Node 4: Devzone preview (future, dimmed) -->
+    <div style="background:var(--bg-card);border:1px dashed var(--border);border-radius:8px;padding:0.75rem 1.25rem;width:100%;opacity:0.5">
+      <p style="margin:0;font-weight:600;font-size:0.9rem">Devzone Preview <span style="font-size:0.72rem;color:var(--text-label);font-weight:400">(future)</span></p>
+      <p style="margin:2px 0 0;font-size:0.78rem;color:var(--text-muted)">Automated staging preview of the public page</p>
+    </div>
+
+    <!-- Arrow -->
+    <div style="display:flex;flex-direction:column;align-items:center;width:100%;padding:4px 0">
+      <div style="width:2px;height:16px;background:var(--border)"></div>
+      <div style="font-size:0.7rem;color:var(--text-label)">▼</div>
+    </div>
+
+    <!-- Node 5: JSON handoff -->
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.75rem 1.25rem;width:100%">
+      <p style="margin:0;font-weight:600;font-size:0.9rem">JSON Handoff</p>
+      <p style="margin:2px 0 0;font-size:0.78rem;color:var(--text-muted)">Export workload configs as JSON, send to Joseph Chang manually</p>
+    </div>
+
+    <!-- Arrow -->
+    <div style="display:flex;flex-direction:column;align-items:center;width:100%;padding:4px 0">
+      <div style="width:2px;height:16px;background:var(--border)"></div>
+      <div style="font-size:0.7rem;color:var(--text-label)">▼</div>
+    </div>
+
+    <!-- Node 6: Public devzone page -->
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.75rem 1.25rem;width:100%">
+      <p style="margin:0;font-weight:600;font-size:0.9rem">Public Devzone Page</p>
+      <p style="margin:2px 0 0;font-size:0.78rem;color:var(--text-muted)">Maintained by Joseph Chang — external-facing inference benchmarks</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- Section 2: How this works -->
+<section style="max-width:720px">
+  <h2 class="font-metric font-bold mb-4" style="font-size:1.1rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">How This Works</h2>
+
+  <div style="display:flex;flex-direction:column;gap:1.5rem">
+
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem">
+      <h3 style="margin:0 0 0.5rem;font-size:0.9rem;font-weight:600;color:var(--text)">What is inf-hub?</h3>
+      <p style="margin:0;font-size:0.83rem;color:var(--text-muted);line-height:1.6">
+        inf-hub is an internal tool for tracking inference benchmarking workloads throughout their lifecycle — from initial engineering runs through internal review, accuracy gating, and final publication on NVIDIA's developer pages. It provides a single source of truth for who owns each workload, what its current status is, and what configs have been submitted.
+      </p>
+    </div>
+
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem">
+      <h3 style="margin:0 0 0.5rem;font-size:0.9rem;font-weight:600;color:var(--text)">Workload Lifecycle</h3>
+      <p style="margin:0 0 0.5rem;font-size:0.83rem;color:var(--text-muted);line-height:1.6">Each workload moves through these statuses:</p>
+      <ol style="margin:0;padding-left:1.25rem;font-size:0.83rem;color:var(--text-muted);line-height:2">
+        <li><strong style="color:var(--text)">not_started</strong> — created, not yet being worked on</li>
+        <li><strong style="color:var(--text)">config_search</strong> — engineer is tuning configs</li>
+        <li><strong style="color:var(--text)">accuracy_gate</strong> — blocked on accuracy validation</li>
+        <li><strong style="color:var(--text)">internal_review</strong> — pending sign-off</li>
+        <li><strong style="color:var(--text)">infmax_submitted</strong> — submitted to InfMax</li>
+        <li><strong style="color:var(--text)">published</strong> — live on devzone</li>
+      </ol>
+    </div>
+
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem">
+      <h3 style="margin:0 0 0.5rem;font-size:0.9rem;font-weight:600;color:var(--text)">Config Versioning</h3>
+      <p style="margin:0;font-size:0.83rem;color:var(--text-muted);line-height:1.6">
+        Each workload can have multiple config versions. Upload a new config file or URL from the workload detail page. Versions are numbered sequentially (v1, v2, …). The latest config version is shown as a link in the workload matrix. All config uploads are attributed to the uploader with a timestamp.
+      </p>
+    </div>
+
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem">
+      <h3 style="margin:0 0 0.5rem;font-size:0.9rem;font-weight:600;color:var(--text)">Breadth Studies</h3>
+      <p style="margin:0;font-size:0.83rem;color:var(--text-muted);line-height:1.6">
+        A breadth study lets you create a large matrix of workloads at once using a crossproduct of dimensions (models × hardware × frameworks × precisions × scenarios × seqlens). All workloads in a study get tagged with a shared <code style="background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:3px">study_id</code> and <code style="background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:3px">work_type=breadth_test</code>. Duplicate workloads (identical 6-tuple) are silently skipped.
+      </p>
+    </div>
+
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem">
+      <h3 style="margin:0 0 0.5rem;font-size:0.9rem;font-weight:600;color:var(--text)">Audit Trail</h3>
+      <p style="margin:0;font-size:0.83rem;color:var(--text-muted);line-height:1.6">
+        Every field edit is recorded in an audit log: who changed what, from which value to which value, and when. The audit trail for each workload is accessible from the workload detail page. All edits require authentication via NVIDIA SSO.
+      </p>
+    </div>
+
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem">
+      <h3 style="margin:0 0 0.5rem;font-size:0.9rem;font-weight:600;color:var(--text)">JSON Handoff to Joseph</h3>
+      <p style="margin:0;font-size:0.83rem;color:var(--text-muted);line-height:1.6">
+        Publication to the public devzone page is a manual process. When workloads reach "published" status, the relevant config JSON is exported and sent to Joseph Chang, who updates the public-facing NVIDIA developer inference benchmarks page. Automated publishing is planned for a future phase.
+      </p>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

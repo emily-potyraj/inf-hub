@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% block title %}inf-hub — Add Workload{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="font-metric text-2xl font-bold" style="letter-spacing:0.03em">Add Workload</h1>
+    <p style="color:var(--text-muted);font-size:0.83rem;margin-top:2px">Create a single workload or a breadth study</p>
+  </div>
+</div>
+
+{% if not user %}
+<div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.5rem">
+  <p style="color:var(--amber);font-size:0.9rem;margin:0">
+    You must <a href="/auth/login" style="color:var(--amber);font-weight:600;text-decoration:underline">sign in</a> to submit workloads.
+  </p>
+</div>
+{% endif %}
+
+<!-- Tab switcher -->
+<div class="flex gap-2 mb-6">
+  <button id="tab-single" onclick="switchTab('single')"
+    style="padding:6px 16px;border-radius:6px;border:1px solid var(--border);cursor:pointer;font-size:0.85rem;font-weight:500;background:var(--green-bg);color:var(--green)">
+    Single Workload
+  </button>
+  <button id="tab-breadth" onclick="switchTab('breadth')"
+    style="padding:6px 16px;border-radius:6px;border:1px solid var(--border);cursor:pointer;font-size:0.85rem;font-weight:500;background:transparent;color:var(--text-muted)">
+    Breadth Study
+  </button>
+</div>
+
+<!-- Path A: Single Workload -->
+<div id="panel-single">
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem;max-width:500px">
+    <h2 class="font-metric text-lg font-bold mb-4">Single Workload</h2>
+    <form
+      id="single-form"
+      hx-post="/workloads"
+      hx-target="#single-result"
+      hx-swap="innerHTML"
+      hx-on::after-request="onSingleSubmit(event)"
+    >
+      {% for field, placeholder in [
+        ("model","e.g. DSR1"), ("hardware","e.g. B200"), ("framework","e.g. vLLM"),
+        ("precision","e.g. FP8"), ("scenario","e.g. agg"), ("seqlens","e.g. 1k/1k")
+      ] %}
+      <div class="mb-3">
+        <label class="block mb-1" style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">{{ field }}</label>
+        <input name="{{ field }}" placeholder="{{ placeholder }}" required class="edit-input w-full" {% if not user %}disabled{% endif %}>
+      </div>
+      {% endfor %}
+      <div class="flex gap-3 mt-4">
+        <button type="submit" class="badge badge-green" style="cursor:pointer;padding:6px 14px;font-size:0.82rem" {% if not user %}disabled style="opacity:0.5;cursor:not-allowed"{% endif %}>Add Workload</button>
+        <a href="/" class="badge badge-muted" style="cursor:pointer;padding:6px 14px;font-size:0.82rem;text-decoration:none">Cancel</a>
+      </div>
+    </form>
+    <div id="single-result" style="margin-top:1rem"></div>
+  </div>
+</div>
+
+<!-- Path B: Breadth Study Wizard -->
+<div id="panel-breadth" class="hidden">
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem;max-width:700px">
+    <h2 class="font-metric text-lg font-bold mb-1">Breadth Study</h2>
+
+    <!-- Step indicators -->
+    <div class="flex gap-4 mb-6" style="font-size:0.82rem">
+      <span id="step-ind-1" style="color:var(--green);font-weight:600">1. Name</span>
+      <span style="color:var(--text-label)">›</span>
+      <span id="step-ind-2" style="color:var(--text-label)">2. Dimensions</span>
+      <span style="color:var(--text-label)">›</span>
+      <span id="step-ind-3" style="color:var(--text-label)">3. Review</span>
+    </div>
+
+    <!-- Step 1: Study name -->
+    <div id="breadth-step-1">
+      <div class="mb-4">
+        <label class="block mb-1" style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">Study Name</label>
+        <input id="study-name" type="text" placeholder="e.g. B200 FP8 sweep Q1-2026" class="edit-input" style="width:100%;max-width:400px" {% if not user %}disabled{% endif %}>
+      </div>
+      <button onclick="gotoStep(2)" class="badge badge-green" style="cursor:pointer;padding:6px 14px;font-size:0.82rem" {% if not user %}disabled{% endif %}>Next →</button>
+    </div>
+
+    <!-- Step 2: Dimensions -->
+    <div id="breadth-step-2" class="hidden">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+        {% for dim_id, dim_label, dim_placeholder in [
+          ("dim-models", "Models", "DSR1, LLM70B"),
+          ("dim-hardware", "Hardware", "B200, H100"),
+          ("dim-frameworks", "Frameworks", "vLLM, TRT-LLM"),
+          ("dim-precisions", "Precisions", "FP8, BF16"),
+          ("dim-scenarios", "Scenarios", "agg, ind"),
+          ("dim-seqlens", "Seqlens", "1k/1k, 8k/1k"),
+        ] %}
+        <div>
+          <label class="block mb-1" style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">{{ dim_label }}</label>
+          <textarea id="{{ dim_id }}" rows="3" placeholder="{{ dim_placeholder }}" class="edit-input w-full" oninput="updateCrossproduct()" {% if not user %}disabled{% endif %}></textarea>
+        </div>
+        {% endfor %}
+      </div>
+      <p style="font-size:0.83rem;color:var(--text-muted);margin-bottom:1rem">
+        Comma-separated values. Crossproduct: <strong id="xp-count" style="color:var(--green)">0</strong> workloads
+      </p>
+      <div class="flex gap-3">
+        <button onclick="gotoStep(1)" class="badge badge-muted" style="cursor:pointer;padding:6px 14px;font-size:0.82rem">← Back</button>
+        <button onclick="gotoStep(3)" class="badge badge-green" style="cursor:pointer;padding:6px 14px;font-size:0.82rem" {% if not user %}disabled{% endif %}>Next →</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Review -->
+    <div id="breadth-step-3" class="hidden">
+      <h3 class="font-metric font-bold mb-3" style="font-size:1rem">Review</h3>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:1rem">
+        <thead>
+          <tr>
+            <th style="text-align:left;font-size:0.68rem;color:var(--text-label);text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--border)">Dimension</th>
+            <th style="text-align:left;font-size:0.68rem;color:var(--text-label);text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--border)">Values</th>
+            <th style="text-align:right;font-size:0.68rem;color:var(--text-label);text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--border)">Count</th>
+          </tr>
+        </thead>
+        <tbody id="review-table-body"></tbody>
+      </table>
+      <p style="font-size:0.9rem;margin-bottom:1rem">
+        Total crossproduct: <strong id="review-xp-count" style="color:var(--green)">0</strong> workloads
+      </p>
+      <div class="flex gap-3">
+        <button onclick="gotoStep(2)" class="badge badge-muted" style="cursor:pointer;padding:6px 14px;font-size:0.82rem">← Back</button>
+        {% if user %}
+        <button onclick="submitBreadthStudy()" class="badge badge-green" style="cursor:pointer;padding:6px 14px;font-size:0.82rem">Submit Study</button>
+        {% else %}
+        <span class="badge badge-muted" style="opacity:0.5;padding:6px 14px;font-size:0.82rem">Sign in to submit</span>
+        {% endif %}
+      </div>
+      <div id="breadth-result" style="margin-top:1rem"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let activeTab = 'single';
+
+  function switchTab(tab) {
+    activeTab = tab;
+    const panelSingle = document.getElementById('panel-single');
+    const panelBreadth = document.getElementById('panel-breadth');
+    const tabSingle = document.getElementById('tab-single');
+    const tabBreadth = document.getElementById('tab-breadth');
+
+    if (tab === 'single') {
+      panelSingle.classList.remove('hidden');
+      panelBreadth.classList.add('hidden');
+      tabSingle.style.background = 'var(--green-bg)';
+      tabSingle.style.color = 'var(--green)';
+      tabBreadth.style.background = 'transparent';
+      tabBreadth.style.color = 'var(--text-muted)';
+    } else {
+      panelSingle.classList.add('hidden');
+      panelBreadth.classList.remove('hidden');
+      tabBreadth.style.background = 'var(--green-bg)';
+      tabBreadth.style.color = 'var(--green)';
+      tabSingle.style.background = 'transparent';
+      tabSingle.style.color = 'var(--text-muted)';
+    }
+  }
+
+  function showStep(n) {
+    for (let i = 1; i <= 3; i++) {
+      const el = document.getElementById('breadth-step-' + i);
+      if (el) el.classList.add('hidden');
+      const ind = document.getElementById('step-ind-' + i);
+      if (ind) ind.style.color = 'var(--text-label)';
+    }
+    const step = document.getElementById('breadth-step-' + n);
+    if (step) step.classList.remove('hidden');
+    const ind = document.getElementById('step-ind-' + n);
+    if (ind) { ind.style.color = 'var(--green)'; ind.style.fontWeight = '600'; }
+  }
+
+  function gotoStep(n) {
+    if (n === 2) {
+      const name = document.getElementById('study-name').value.trim();
+      if (!name) { alert('Please enter a study name.'); return; }
+    }
+    if (n === 3) {
+      updateCrossproduct();
+      populateReview();
+    }
+    showStep(n);
+  }
+
+  function parseDim(id) {
+    const val = document.getElementById(id).value;
+    return val.split(',').map(s => s.trim()).filter(s => s.length > 0);
+  }
+
+  function updateCrossproduct() {
+    const dims = [
+      parseDim('dim-models'), parseDim('dim-hardware'), parseDim('dim-frameworks'),
+      parseDim('dim-precisions'), parseDim('dim-scenarios'), parseDim('dim-seqlens'),
+    ];
+    const count = dims.reduce((acc, d) => acc * (d.length || 1), 1);
+    const displayCount = dims.every(d => d.length > 0) ? dims.reduce((acc, d) => acc * d.length, 1) : 0;
+    const el = document.getElementById('xp-count');
+    if (el) el.textContent = displayCount;
+  }
+
+  function populateReview() {
+    const dims = [
+      { label: 'Models', values: parseDim('dim-models') },
+      { label: 'Hardware', values: parseDim('dim-hardware') },
+      { label: 'Frameworks', values: parseDim('dim-frameworks') },
+      { label: 'Precisions', values: parseDim('dim-precisions') },
+      { label: 'Scenarios', values: parseDim('dim-scenarios') },
+      { label: 'Seqlens', values: parseDim('dim-seqlens') },
+    ];
+    const tbody = document.getElementById('review-table-body');
+    tbody.innerHTML = dims.map(d =>
+      `<tr>
+        <td style="padding:5px 8px;font-size:0.83rem;border-bottom:1px solid var(--border)">${d.label}</td>
+        <td style="padding:5px 8px;font-size:0.83rem;border-bottom:1px solid var(--border);color:var(--text-muted)">${d.values.join(', ') || '—'}</td>
+        <td style="padding:5px 8px;font-size:0.83rem;border-bottom:1px solid var(--border);text-align:right;color:var(--green)">${d.values.length}</td>
+      </tr>`
+    ).join('');
+    const xp = dims.every(d => d.values.length > 0) ? dims.reduce((acc, d) => acc * d.values.length, 1) : 0;
+    const el = document.getElementById('review-xp-count');
+    if (el) el.textContent = xp;
+  }
+
+  async function submitBreadthStudy() {
+    const name = document.getElementById('study-name').value.trim();
+    const payload = {
+      name: name,
+      models: parseDim('dim-models'),
+      hardware: parseDim('dim-hardware'),
+      frameworks: parseDim('dim-frameworks'),
+      precisions: parseDim('dim-precisions'),
+      scenarios: parseDim('dim-scenarios'),
+      seqlens: parseDim('dim-seqlens'),
+    };
+
+    const resultEl = document.getElementById('breadth-result');
+    resultEl.innerHTML = '<span style="color:var(--text-muted)">Submitting…</span>';
+
+    try {
+      const resp = await fetch('/breadth-studies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (resp.status === 401) {
+        window.location.href = '/auth/login';
+        return;
+      }
+      const data = await resp.json();
+      if (resp.ok) {
+        resultEl.innerHTML = `
+          <div style="background:var(--green-bg);border:1px solid var(--green);border-radius:8px;padding:0.75rem 1rem">
+            <p style="color:var(--green);margin:0 0 4px 0;font-weight:600">Study created</p>
+            <p style="color:var(--text-muted);font-size:0.83rem;margin:0">${data.created} workloads added, ${data.skipped} skipped</p>
+            <p style="margin:8px 0 0 0"><a href="/" style="color:var(--blue);font-size:0.83rem">← Back to workload list</a></p>
+          </div>`;
+      } else {
+        resultEl.innerHTML = `<p style="color:var(--red);font-size:0.83rem">Error: ${data.detail || 'Unknown error'}</p>`;
+      }
+    } catch(e) {
+      resultEl.innerHTML = `<p style="color:var(--red);font-size:0.83rem">Network error: ${e.message}</p>`;
+    }
+  }
+
+  function onSingleSubmit(event) {
+    const xhr = event.detail.xhr;
+    if (xhr.status === 200 || xhr.status === 201) {
+      // Success — redirect to workloads list
+      setTimeout(() => { window.location.href = '/'; }, 500);
+    }
+  }
+</script>
+
+{% endblock %}

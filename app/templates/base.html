@@ -19,6 +19,8 @@
         <nav class="flex gap-1">
           <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">Workloads</a>
           <a href="/team" class="nav-link {% if request.url.path == '/team' %}active{% endif %}">Team</a>
+          <a href="/add" class="nav-link {% if request.url.path == '/add' %}active{% endif %}">+ Add</a>
+          <a href="/overview" class="nav-link {% if request.url.path == '/overview' %}active{% endif %}">Overview</a>
         </nav>
       </div>
       <div class="flex items-center gap-3">

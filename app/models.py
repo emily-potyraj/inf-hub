@@ -38,6 +38,8 @@ class Workload(Base):
     nvmax_recipe_url = Column(Text)
     ibdb_link = Column(Text)
     notes = Column(Text)
+    work_type = Column(Text)   # nullable; 'tune' | 'breadth_test'
+    study_id  = Column(Text)   # nullable; FK to breadth_studies.id (app-enforced)
     created_at = Column(DateTime, default=_now)
     last_updated = Column(DateTime, default=_now, onupdate=_now)
 
@@ -69,6 +71,15 @@ class AuditLog(Base):
     old_value = Column(Text)
     new_value = Column(Text)
     timestamp = Column(DateTime, default=_now)
+
+
+class BreadthStudy(Base):
+    __tablename__ = "breadth_studies"
+    id               = Column(Text, primary_key=True)   # UUID string
+    name             = Column(Text, nullable=False)
+    created_by       = Column(Text)
+    created_by_email = Column(Text)
+    created_at       = Column(DateTime, default=_now)
 
 
 class TeamFunction(Base):

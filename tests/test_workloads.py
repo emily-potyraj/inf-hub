@@ -91,3 +91,38 @@ def test_filter_unassigned_pic(auth_client):
     r = auth_client.get("/workloads?unassigned_pic=true")
     assert len(r.json()) == 1
     assert r.json()[0]["pic"] is None
+
+
+def test_patch_work_type(auth_client):
+    r = auth_client.post("/workloads", json=WORKLOAD_BASE)
+    w_id = r.json()["id"]
+    r2 = auth_client.patch(f"/workloads/{w_id}/work_type", json={"value": "tune"})
+    assert r2.status_code == 200
+    r3 = auth_client.get(f"/workloads/{w_id}")
+    assert r3.status_code == 200
+    assert r3.json()["work_type"] == "tune"
+
+
+def test_patch_work_type_writes_audit_log(auth_client):
+    r = auth_client.post("/workloads", json=WORKLOAD_BASE)
+    w_id = r.json()["id"]
+    auth_client.patch(f"/workloads/{w_id}/work_type", json={"value": "tune"})
+    r2 = auth_client.get(f"/workloads/{w_id}/audit")
+    assert r2.status_code == 200
+    entries = r2.json()
+    assert any(e["field_name"] == "work_type" for e in entries)
+
+
+def test_patch_work_type_invalid_value_returns_200(auth_client):
+    r = auth_client.post("/workloads", json=WORKLOAD_BASE)
+    w_id = r.json()["id"]
+    # API doesn't validate values, only field names — should succeed
+    r2 = auth_client.patch(f"/workloads/{w_id}/work_type", json={"value": "invalid"})
+    assert r2.status_code == 200
+
+
+def test_work_type_unknown_field_returns_400(auth_client):
+    r = auth_client.post("/workloads", json=WORKLOAD_BASE)
+    w_id = r.json()["id"]
+    r2 = auth_client.patch(f"/workloads/{w_id}/nonexistent_field", json={"value": "foo"})
+    assert r2.status_code == 400

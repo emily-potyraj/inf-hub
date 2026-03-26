@@ -26,14 +26,15 @@
         <th>Model</th><th>HW</th><th>Framework</th><th>Precision</th>
         <th>Scenario · Seqlens</th><th>Status</th><th>PIC</th>
         <th>NV TPS</th><th>AMD TPS</th><th>Gap</th>
-        <th>Accuracy</th><th>DLPerf</th><th>InfMax</th><th>Config</th>
+        <th>Accuracy</th><th>DLPerf</th><th>InfMax</th>
+        <th>Work Type</th><th>Study</th><th>IBDB</th><th>Config</th>
       </tr>
     </thead>
     <tbody id="workload-tbody">
       {% for w in workloads %}
         {% include "partials/workload_row.html" %}
       {% else %}
-        <tr><td colspan="14" style="text-align:center;color:var(--text-muted);padding:2rem">No workloads match the current filters.</td></tr>
+        <tr><td colspan="18" style="text-align:center;color:var(--text-muted);padding:2rem">No workloads match the current filters.</td></tr>
       {% endfor %}
     </tbody>
   </table>

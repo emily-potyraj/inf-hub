@@ -15,7 +15,7 @@ router = APIRouter(prefix="/workloads", tags=["workloads"])
 EDITABLE_FIELDS = {
     "status", "pic", "priority", "story_label", "accuracy_status",
     "nv_tps", "amd_tps", "dl_perf_published", "infmax_submitted",
-    "nvmax_recipe_url", "ibdb_link", "notes",
+    "nvmax_recipe_url", "ibdb_link", "notes", "work_type",
 }
 
 FIELD_TYPES = {
@@ -31,10 +31,12 @@ FIELD_TYPES = {
     "nvmax_recipe_url": "text",
     "ibdb_link": "text",
     "notes": "text",
+    "work_type": "select",
 }
 
 STATUS_OPTIONS = ["not_started", "config_search", "accuracy_gate", "internal_review", "infmax_submitted", "published"]
 ACCURACY_OPTIONS = ["not_run", "pass", "fail", "unknown"]
+WORK_TYPE_OPTIONS = ["tune", "breadth_test"]
 
 _templates = Jinja2Templates(directory="app/templates")
 
@@ -101,10 +103,19 @@ def create_workload(
     row = _to_row(w)
     if request.headers.get("HX-Request"):
         from datetime import datetime, timezone, timedelta
+        from sqlalchemy import func
+        from app.models import ConfigVersion
         stale_threshold = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        config_subq = (
+            db.query(ConfigVersion.workload_id, func.max(ConfigVersion.version_num).label("max_v"))
+            .group_by(ConfigVersion.workload_id)
+            .all()
+        )
+        latest_configs = {r.workload_id: r.max_v for r in config_subq}
         return _templates.TemplateResponse(
             "partials/workload_row.html",
-            {"request": request, "w": row, "user": user, "stale_threshold": stale_threshold},
+            {"request": request, "w": row, "user": user, "stale_threshold": stale_threshold,
+             "latest_configs": latest_configs},
         )
     return row
 
@@ -171,7 +182,12 @@ def edit_field_widget(
     field_type = FIELD_TYPES.get(field, "text")
 
     if field_type == "select":
-        options = STATUS_OPTIONS if field == "status" else ACCURACY_OPTIONS
+        if field == "status":
+            options = STATUS_OPTIONS
+        elif field == "work_type":
+            options = WORK_TYPE_OPTIONS
+        else:
+            options = ACCURACY_OPTIONS
         opts_html = "".join(
             f'<option value="{o}" {"selected" if o == current else ""}>{o}</option>'
             for o in options
