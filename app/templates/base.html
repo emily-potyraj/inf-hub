@@ -21,6 +21,7 @@
           <a href="/team" class="nav-link {% if request.url.path == '/team' %}active{% endif %}">Team</a>
           <a href="/add" class="nav-link {% if request.url.path == '/add' %}active{% endif %}">+ Add</a>
           <a href="/overview" class="nav-link {% if request.url.path == '/overview' %}active{% endif %}">Overview</a>
+          <a href="/devzone" class="nav-link {% if request.url.path.startswith('/devzone') %}active{% endif %}">Devzone</a>
         </nav>
       </div>
       <div class="flex items-center gap-3">

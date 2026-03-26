@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+{% block title %}Devzone · inf-hub{% endblock %}
+
+{% block content %}
+<div class="flex gap-6" style="min-height: calc(100vh - 120px)">
+
+  <!-- Sidebar: scene list -->
+  <aside style="width:280px; flex-shrink:0; border-right:1px solid var(--border); padding-right:1.5rem">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-metric text-sm font-semibold" style="color:var(--text-muted); letter-spacing:0.08em; text-transform:uppercase">Scenes</h2>
+      {% if user %}
+      <button onclick="document.getElementById('new-scene-modal').style.display='flex'"
+              class="text-xs px-2 py-1 rounded"
+              style="background:var(--green); color:#000; font-weight:600">+ New</button>
+      {% endif %}
+    </div>
+
+    {% if scenes %}
+      {% for s in scenes %}
+      <a href="/devzone?scene={{ s.id }}"
+         class="block rounded-lg mb-2 p-3 cursor-pointer"
+         style="background:{% if selected and selected.id == s.id %}var(--row-alt){% else %}transparent{% endif %}; border:1px solid {% if selected and selected.id == s.id %}var(--border){% else %}transparent{% endif %}; text-decoration:none">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-medium" style="color:var(--text)">{{ s.name }}</span>
+          {% if s.is_published %}
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block" title="Published"></span>
+          {% endif %}
+        </div>
+        <div class="text-xs mt-1" style="color:var(--text-muted)">{{ s.model }} · {{ s.seqlen }}</div>
+        <div class="text-xs mt-1" style="color:var(--text-muted)">
+          {{ s.curve_count }} curve{% if s.curve_count != 1 %}s{% endif %} ·
+          by {{ s.created_by or 'unknown' }}
+        </div>
+        {% if user and selected and selected.id == s.id %}
+        <div class="flex gap-2 mt-2">
+          <button onclick="openCompareModal('{{ s.id }}')"
+                  class="text-xs px-2 py-1 rounded"
+                  style="background:var(--row-alt); color:var(--text-muted); border:1px solid var(--border)">
+            Compare
+          </button>
+        </div>
+        {% endif %}
+      </a>
+      {% endfor %}
+    {% else %}
+      <p class="text-sm" style="color:var(--text-muted)">No scenes yet. Create one to start staging curves.</p>
+    {% endif %}
+  </aside>
+
+  <!-- Main panel -->
+  <main class="flex-1 min-w-0">
+    {% if selected %}
+
+    <!-- Scene header -->
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        {% if user %}
+        <input type="text"
+               value="{{ selected.name }}"
+               class="text-xl font-semibold bg-transparent border-none outline-none"
+               style="color:var(--text); font-family:inherit; width:100%"
+               hx-patch="/devzone/scenes/{{ selected.id }}/name"
+               hx-trigger="blur"
+               hx-vals="js:{name: event.target.value}"
+               hx-swap="none"
+               title="Click to rename" />
+        {% else %}
+        <h1 class="text-xl font-semibold" style="color:var(--text)">{{ selected.name }}</h1>
+        {% endif %}
+        <p class="text-sm mt-1" style="color:var(--text-muted)">{{ selected.model }} · {{ selected.seqlen }}</p>
+      </div>
+      <div class="flex gap-2">
+        <a href="/devzone/scenes/{{ selected.id }}/export"
+           class="text-xs px-3 py-1.5 rounded"
+           style="background:var(--row-alt); color:var(--text-muted); border:1px solid var(--border); text-decoration:none">
+          Export JSON
+        </a>
+        {% if user %}
+        {% if not selected.is_published %}
+        <button hx-patch="/devzone/scenes/{{ selected.id }}/publish"
+                hx-swap="none"
+                hx-on::after-request="window.location.reload()"
+                class="text-xs px-3 py-1.5 rounded"
+                style="background:var(--green); color:#000; font-weight:600">
+          Mark Published
+        </button>
+        {% else %}
+        <span class="text-xs px-3 py-1.5 rounded" style="background:var(--row-alt); color:var(--green); border:1px solid var(--green)">
+          ✓ Published
+        </span>
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Plotly chart -->
+    <div id="devzone-chart" style="height:400px; width:100%; border-radius:8px; overflow:hidden; background:var(--row-alt); border:1px solid var(--border)"></div>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <script>
+    (function() {
+      var traces = {{ traces_json | safe }};
+      var layout = {
+        xaxis: {title: 'Interactivity (tokens/sec/user)', color: '#e2e8f0', gridcolor: '#333'},
+        yaxis: {title: 'Throughput (tokens/sec/GPU)', color: '#e2e8f0', gridcolor: '#333'},
+        paper_bgcolor: '#23262d',
+        plot_bgcolor: '#23262d',
+        font: {color: '#e2e8f0', family: 'Inter, sans-serif'},
+        legend: {bgcolor: 'rgba(0,0,0,0)', bordercolor: '#444'},
+        margin: {l: 60, r: 20, t: 20, b: 60},
+      };
+      Plotly.newPlot('devzone-chart', traces, layout, {responsive: true, displayModeBar: false});
+    })();
+    </script>
+
+    <!-- Comparison placeholder -->
+    <div class="rounded-lg mt-6 p-4 flex items-center gap-3"
+         style="background:var(--row-alt); border:1px solid var(--border); opacity:0.5">
+      <span style="font-size:1.25rem">🔒</span>
+      <div>
+        <p class="text-sm font-medium" style="color:var(--text)">Curve comparison</p>
+        <p class="text-xs" style="color:var(--text-muted)">Select two curves to see x-factor differences along the full Pareto. Coming soon.</p>
+      </div>
+    </div>
+
+    <!-- Curve list -->
+    <div class="mt-6">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-semibold" style="color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em">Curves</h3>
+        {% if user %}
+        <button onclick="document.getElementById('add-curves-modal').style.display='flex'"
+                class="text-xs px-2 py-1 rounded"
+                style="background:var(--row-alt); color:var(--text); border:1px solid var(--border)">
+          + Add Curves
+        </button>
+        {% endif %}
+      </div>
+      {% if curves %}
+      <table class="w-full text-sm">
+        <thead>
+          <tr style="color:var(--text-muted); border-bottom:1px solid var(--border)">
+            <th class="text-left py-2 pr-4">Label</th>
+            <th class="text-left py-2 pr-4">Hardware</th>
+            <th class="text-left py-2 pr-4">Framework</th>
+            <th class="text-left py-2 pr-4">Precision</th>
+            <th class="text-left py-2 pr-4">Source</th>
+            <th class="text-left py-2 pr-4">Uploaded by</th>
+            <th class="text-left py-2"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in curves %}
+          <tr style="border-bottom:1px solid var(--border)">
+            <td class="py-2 pr-4">
+              <span class="inline-block w-3 h-3 rounded-full mr-2" style="background:{{ c.color or '#76b900' }}"></span>
+              {{ c.label }}
+            </td>
+            <td class="py-2 pr-4" style="color:var(--text-muted)">{{ c.hardware }}</td>
+            <td class="py-2 pr-4" style="color:var(--text-muted)">{{ c.framework or '—' }}</td>
+            <td class="py-2 pr-4" style="color:var(--text-muted)">{{ c.precision or '—' }}</td>
+            <td class="py-2 pr-4 text.xs" style="color:var(--text-muted)">{{ c.ibdb_source or '—' }}</td>
+            <td class="py-2 pr-4 text-xs" style="color:var(--text-muted)">{{ c.uploaded_by or '—' }}</td>
+            <td class="py-2">
+              {% if user %}
+              <button hx-delete="/devzone/curves/{{ c.id }}"
+                      hx-confirm="Remove this curve?"
+                      hx-swap="none"
+                      hx-on::after-request="window.location.reload()"
+                      class="text-xs"
+                      style="color:var(--text-muted)">✕</button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-sm" style="color:var(--text-muted)">No curves yet. Upload an IBDB export to add curves.</p>
+      {% endif %}
+    </div>
+
+    {% else %}
+    <div class="flex items-center justify-center h-64" style="color:var(--text-muted)">
+      <p class="text-sm">Select a scene from the sidebar, or create a new one.</p>
+    </div>
+    {% endif %}
+  </main>
+</div>
+
+<!-- New Scene Modal -->
+<div id="new-scene-modal"
+     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; align-items:center; justify-content:center">
+  <div style="background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:2rem; width:400px; max-width:90vw">
+    <h3 class="text-lg font-semibold mb-4" style="color:var(--text)">New Scene</h3>
+    <form id="new-scene-form">
+      <div class="mb-3">
+        <label class="text-xs" style="color:var(--text-muted)">Name</label>
+        <input type="text" name="name" required placeholder="e.g. DSR1 B200 vs GB300 FP8 staging"
+               class="w-full mt-1 px-3 py-2 rounded text-sm"
+               style="background:var(--row-alt); border:1px solid var(--border); color:var(--text)">
+      </div>
+      <div class="mb-3">
+        <label class="text-xs" style="color:var(--text-muted)">Model</label>
+        <input type="text" name="model" required placeholder="e.g. deepseek-r1"
+               class="w-full mt-1 px-3 py-2 rounded text-sm"
+               style="background:var(--row-alt); border:1px solid var(--border); color:var(--text)">
+      </div>
+      <div class="mb-4">
+        <label class="text-xs" style="color:var(--text-muted)">Seqlen</label>
+        <input type="text" name="seqlen" required placeholder="e.g. 128K/8K"
+               class="w-full mt-1 px-3 py-2 rounded text-sm"
+               style="background:var(--row-alt); border:1px solid var(--border); color:var(--text)">
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button type="button" onclick="document.getElementById('new-scene-modal').style.display='none'"
+                class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Cancel</button>
+        <button type="submit" class="text-sm px-3 py-1.5 rounded font-semibold"
+                style="background:var(--green); color:#000">Create</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add Curves Modal -->
+{% if selected %}
+<div id="add-curves-modal"
+     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; align-items:center; justify-content:center">
+  <div style="background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:2rem; width:520px; max-width:90vw">
+    <h3 class="text-lg font-semibold mb-4" style="color:var(--text)">Add Curves from IBDB</h3>
+    <div id="modal-step-1">
+      <p class="text-sm mb-3" style="color:var(--text-muted)">Upload an IBDB Plotly HTML export (.html) to preview available curves.</p>
+      <input type="file" id="ibdb-file-input" accept=".html"
+             class="text-sm mb-4" style="color:var(--text)">
+      <div class="mb-3">
+        <label class="text-xs" style="color:var(--text-muted)">Paste IBDB URL</label>
+        <input type="text" placeholder="API integration coming soon" disabled
+               class="w-full mt-1 px-3 py-2 rounded text-sm"
+               style="background:var(--row-alt); border:1px solid var(--border); color:var(--text-muted); cursor:not-allowed"
+               title="IBDB API integration coming soon">
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button type="button" onclick="document.getElementById('add-curves-modal').style.display='none'"
+                class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Cancel</button>
+        <button type="button" onclick="previewCurves()"
+                class="text-sm px-3 py-1.5 rounded font-semibold"
+                style="background:var(--green); color:#000">Preview</button>
+      </div>
+    </div>
+    <div id="modal-step-2" style="display:none">
+      <div id="series-checklist" class="mb-4"></div>
+      <div id="duplicate-warning" style="display:none" class="text-xs mb-3 p-2 rounded"
+           style="background:#3b1f00; color:#fbbf24; border:1px solid #fbbf24">
+        One or more curves already exist in this scene and will be added with a date suffix.
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button type="button" onclick="document.getElementById('modal-step-2').style.display='none'; document.getElementById('modal-step-1').style.display='block'"
+                class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Back</button>
+        <button type="button" onclick="confirmAddCurves()"
+                class="text-sm px-3 py-1.5 rounded font-semibold"
+                style="background:var(--green); color:#000">Add Selected</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Compare Modal -->
+<div id="compare-modal"
+     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; align-items:center; justify-content:center">
+  <div style="background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:2rem; width:420px; max-width:90vw">
+    <h3 class="text-lg font-semibold mb-4" style="color:var(--text)">Compare with Scene</h3>
+    <select id="compare-scene-select" class="w-full px-3 py-2 rounded text-sm mb-4"
+            style="background:var(--row-alt); border:1px solid var(--border); color:var(--text)">
+      <option value="">Select a scene…</option>
+      {% for s in scenes %}
+      {% if not selected or s.id != selected.id %}
+      <option value="{{ s.id }}">{{ s.name }}</option>
+      {% endif %}
+      {% endfor %}
+    </select>
+    <div class="flex gap-2 justify-end">
+      <button onclick="document.getElementById('compare-modal').style.display='none'"
+              class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Cancel</button>
+      <button onclick="goCompare()" class="text-sm px-3 py-1.5 rounded font-semibold"
+              style="background:var(--green); color:#000">Open Side by Side</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var currentSceneId = "{{ selected.id if selected else '' }}";
+
+function openCompareModal(sceneId) {
+  currentSceneId = sceneId;
+  document.getElementById('compare-modal').style.display = 'flex';
+}
+
+function goCompare() {
+  var otherId = document.getElementById('compare-scene-select').value;
+  if (!otherId) return;
+  window.location.href = '/devzone/compare?a=' + currentSceneId + '&b=' + otherId;
+}
+
+// New scene form
+document.getElementById('new-scene-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var fd = new FormData(this);
+  fetch('/devzone/scenes', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      name: fd.get('name'),
+      model: fd.get('model'),
+      seqlen: fd.get('seqlen'),
+    }),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    window.location.href = '/devzone?scene=' + data.id;
+  });
+});
+
+// Add curves preview
+var _previewData = [];
+
+function previewCurves() {
+  var fileInput = document.getElementById('ibdb-file-input');
+  if (!fileInput.files.length) { alert('Please select a file.'); return; }
+  var fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  fetch('/devzone/scenes/' + currentSceneId + '/curves/preview', {method: 'POST', body: fd})
+  .then(function(r) { return r.json(); })
+  .then(function(series) {
+    _previewData = series;
+    var hasDuplicate = series.some(function(s) { return s.duplicate; });
+    document.getElementById('duplicate-warning').style.display = hasDuplicate ? 'block' : 'none';
+    var html = series.map(function(s) {
+      return '<label class="flex items-center gap-2 mb-2 text-sm" style="color:var(--text)">'
+        + '<input type="checkbox" value="' + s.label + '" checked> '
+        + '<strong>' + s.label + '</strong>'
+        + ' &nbsp;<span style="color:var(--text-muted)">'
+        + (s.framework || '') + ' · ' + (s.precision || '') + ' · ' + s.point_count + ' pts'
+        + (s.duplicate ? ' <span style="color:#fbbf24">(already in scene)</span>' : '')
+        + '</span></label>';
+    }).join('');
+    document.getElementById('series-checklist').innerHTML = html;
+    document.getElementById('modal-step-1').style.display = 'none';
+    document.getElementById('modal-step-2').style.display = 'block';
+  });
+}
+
+function confirmAddCurves() {
+  var checked = Array.from(document.querySelectorAll('#series-checklist input:checked'))
+    .map(function(el) { return el.value; });
+  if (!checked.length) return;
+  var fileInput = document.getElementById('ibdb-file-input');
+  var fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  fd.append('selected_labels', JSON.stringify(checked));
+  fetch('/devzone/scenes/' + currentSceneId + '/curves', {method: 'POST', body: fd})
+  .then(function(r) {
+    if (r.ok) window.location.reload();
+  });
+}
+</script>
+{% endblock %}

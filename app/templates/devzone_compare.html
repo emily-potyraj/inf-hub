@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Compare Scenes · inf-hub{% endblock %}
+
+{% block content %}
+<div class="mb-4 flex items-center gap-3">
+  <a href="/devzone" style="color:var(--text-muted); text-decoration:none; font-size:0.85rem">← Back to Devzone</a>
+  <span style="color:var(--border)">|</span>
+  <span class="text-sm" style="color:var(--text-muted)">Side-by-side comparison</span>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+
+<div class="grid gap-6" style="grid-template-columns: 1fr 1fr">
+
+  <!-- Scene A -->
+  <div>
+    {% if scene_a %}
+    <div class="flex items-center justify-between mb-3">
+      {% if user %}
+      <input type="text" value="{{ scene_a.name }}"
+             class="text-base font-semibold bg-transparent border-none outline-none"
+             style="color:var(--text); font-family:inherit"
+             hx-patch="/devzone/scenes/{{ scene_a.id }}/name"
+             hx-trigger="blur"
+             hx-vals="js:{name: event.target.value}"
+             hx-swap="none" />
+      {% else %}
+      <h2 class="text-base font-semibold" style="color:var(--text)">{{ scene_a.name }}</h2>
+      {% endif %}
+      {% if scene_a.is_published %}
+      <span class="text-xs px-2 py-0.5 rounded" style="background:rgba(118,185,0,0.15); color:var(--green); border:1px solid var(--green)">Published</span>
+      {% endif %}
+    </div>
+    <p class="text-xs mb-3" style="color:var(--text-muted)">{{ scene_a.model }} · {{ scene_a.seqlen }}</p>
+    <div id="chart-a" style="height:380px; border-radius:8px; overflow:hidden; background:var(--row-alt); border:1px solid var(--border)"></div>
+    <script>
+    Plotly.newPlot('chart-a', {{ traces_a | safe }}, {
+      xaxis: {title: 'Interactivity (tokens/sec/user)', color:'#e2e8f0', gridcolor:'#333'},
+      yaxis: {title: 'Throughput (tokens/sec/GPU)', color:'#e2e8f0', gridcolor:'#333'},
+      paper_bgcolor:'#23262d', plot_bgcolor:'#23262d',
+      font:{color:'#e2e8f0', family:'Inter, sans-serif'},
+      margin:{l:60,r:20,t:20,b:60},
+    }, {responsive:true, displayModeBar:false});
+    </script>
+    <div class="mt-3 flex gap-2">
+      <a href="/devzone/scenes/{{ scene_a.id }}/export"
+         class="text-xs px-2 py-1 rounded"
+         style="background:var(--row-alt); color:var(--text-muted); border:1px solid var(--border); text-decoration:none">
+        Export JSON
+      </a>
+    </div>
+    {% else %}
+    <div class="flex items-center justify-center h-64 rounded-lg"
+         style="border:1px dashed var(--border); color:var(--text-muted)">
+      <p class="text-sm">No scene selected (a=)</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Scene B -->
+  <div>
+    {% if scene_b %}
+    <div class="flex items-center justify-between mb-3">
+      {% if user %}
+      <input type="text" value="{{ scene_b.name }}"
+             class="text-base font-semibold bg-transparent border-none outline-none"
+             style="color:var(--text); font-family:inherit"
+             hx-patch="/devzone/scenes/{{ scene_b.id }}/name"
+             hx-trigger="blur"
+             hx-vals="js:{name: event.target.value}"
+             hx-swap="none" />
+      {% else %}
+      <h2 class="text-base font-semibold" style="color:var(--text)">{{ scene_b.name }}</h2>
+      {% endif %}
+      {% if scene_b.is_published %}
+      <span class="text-xs px-2 py-0.5 rounded" style="background:rgba(118,185,0,0.15); color:var(--green); border:1px solid var(--green)">Published</span>
+      {% endif %}
+    </div>
+    <p class="text-xs mb-3" style="color:var(--text-muted)">{{ scene_b.model }} · {{ scene_b.seqlen }}</p>
+    <div id="chart-b" style="height:380px; border-radius:8px; overflow:hidden; background:var(--row-alt); border:1px solid var(--border)"></div>
+    <script>
+    Plotly.newPlot('chart-b', {{ traces_b | safe }}, {
+      xaxis: {title: 'Interactivity (tokens/sec/user)', color:'#e2e8f0', gridcolor:'#333'},
+      yaxis: {title: 'Throughput (tokens/sec/GPU)', color:'#e2e8f0', gridcolor:'#333'},
+      paper_bgcolor:'#23262d', plot_bgcolor:'#23262d',
+      font:{color:'#e2e8f0', family:'Inter, sans-serif'},
+      margin:{l:60,r:20,t:20,b:60},
+    }, {responsive:true, displayModeBar:false});
+    </script>
+    <div class="mt-3 flex gap-2">
+      <a href="/devzone/scenes/{{ scene_b.id }}/export"
+         class="text-xs px-2 py-1 rounded"
+         style="background:var(--row-alt); color:var(--text-muted); border:1px solid var(--border); text-decoration:none">
+        Export JSON
+      </a>
+    </div>
+    {% else %}
+    <div class="flex items-center justify-center h-64 rounded-lg"
+         style="border:1px dashed var(--border); color:var(--text-muted)">
+      <p class="text-sm">No scene selected (b=)</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
