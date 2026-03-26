@@ -95,11 +95,11 @@ class DevzoneSceneRow(BaseModel):
     name:             str
     model:            str
     seqlen:           str
-    created_by:       Optional[str]
-    created_by_email: Optional[str]
-    created_at:       Optional[str]
+    created_by:       Optional[str] = None
+    created_by_email: Optional[str] = None
+    created_at:       Optional[str] = None
     is_published:     int
-    published_at:     Optional[str]
+    published_at:     Optional[str] = None
     curve_count:      int = 0
 
     model_config = {"from_attributes": True}
@@ -110,12 +110,12 @@ class DevzoneCurveRow(BaseModel):
     scene_id:    str
     label:       str
     hardware:    str
-    framework:   Optional[str]
-    precision:   Optional[str]
-    color:       Optional[str]
-    ibdb_source: Optional[str]
-    uploaded_by: Optional[str]
-    uploaded_at: Optional[str]
+    framework:   Optional[str] = None
+    precision:   Optional[str] = None
+    color:       Optional[str] = None
+    ibdb_source: Optional[str] = None
+    uploaded_by: Optional[str] = None
+    uploaded_at: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -123,7 +123,7 @@ class DevzoneCurveRow(BaseModel):
 class DevzoneSeriesPreview(BaseModel):
     label:       str
     hardware:    str
-    framework:   Optional[str]
-    precision:   Optional[str]
+    framework:   Optional[str] = None
+    precision:   Optional[str] = None
     point_count: int
     duplicate:   bool
