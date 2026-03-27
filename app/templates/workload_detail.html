@@ -58,6 +58,61 @@
   <div style="display:flex;flex-direction:column;gap:1.5rem">
     <div id="config-panel" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem">
       {% include "partials/config_history.html" %}
+
+      {# ── Sentinel section ──────────────────────────────────────────────── #}
+      {% if w.sentinel_threat_level or w.amd_tps_sentinel_value is not none %}
+      <details open style="margin-top:1.5rem">
+        <summary style="cursor:pointer;font-size:0.82rem;font-weight:600;color:var(--text-muted);letter-spacing:0.05em;text-transform:uppercase;user-select:none">
+          Sentinel (SemiAnalysis)
+        </summary>
+        <div style="margin-top:0.75rem;display:flex;flex-direction:column;gap:0.5rem">
+
+          {% if w.sentinel_threat_level %}
+            {% set s_color = "var(--green)" if w.sentinel_threat_level == "GREEN" else ("var(--amber)" if w.sentinel_threat_level == "YELLOW" else "var(--red)") %}
+            <div style="display:flex;align-items:center;gap:0.5rem">
+              <span style="padding:2px 8px;border-radius:4px;border:1px solid {{ s_color }};color:{{ s_color }};font-size:0.78rem">
+                {{ w.sentinel_threat_level }}
+              </span>
+              {% if w.sentinel_summary %}
+                <span style="font-size:0.82rem;color:var(--text-muted)">{{ w.sentinel_summary }}</span>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          {% if w.amd_tps_sentinel_value is not none %}
+            <div style="font-size:0.82rem">
+              <span style="color:var(--text-label)">SA-extracted AMD TPS:</span>
+              <span style="font-family:'Rajdhani',sans-serif;color:var(--text)">{{ "%.0f"|format(w.amd_tps_sentinel_value) }}</span>
+              {% if w.amd_tps_synced_at %}
+                <span style="color:var(--text-label);font-size:0.76rem">· synced {{ w.amd_tps_synced_at }}</span>
+              {% endif %}
+            </div>
+            {% if w.amd_tps_source == "manual" and w.amd_tps is not none %}
+              {% set diff_pct = ((w.amd_tps_sentinel_value - w.amd_tps) / w.amd_tps * 100) | abs %}
+              {% if diff_pct > 5 %}
+                <div style="font-size:0.78rem;color:var(--amber);padding:4px 8px;background:rgba(251,191,36,0.1);border-radius:4px;border:1px solid rgba(251,191,36,0.3)">
+                  &#9888; Sentinel value ({{ "%.0f"|format(w.amd_tps_sentinel_value) }}) differs from manually-entered AMD TPS ({{ "%.0f"|format(w.amd_tps) }}) by {{ "%.0f"|format(diff_pct) }}% — review
+                </div>
+              {% endif %}
+            {% endif %}
+          {% endif %}
+
+          {% if w.sentinel_image_url %}
+            <div style="margin-top:0.25rem">
+              <a href="{{ w.sentinel_image_url }}" target="_blank" rel="noopener"
+                 style="font-size:0.80rem;color:var(--blue);text-decoration:none">
+                View on Sentinel dashboard &#8599;
+              </a>
+            </div>
+          {% endif %}
+
+          {% if w.sentinel_synced_at %}
+            <div style="font-size:0.74rem;color:var(--text-label)">Last synced: {{ w.sentinel_synced_at }}</div>
+          {% endif %}
+
+        </div>
+      </details>
+      {% endif %}
     </div>
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem;max-height:400px;overflow-y:auto">
       {% include "partials/audit_trail.html" %}

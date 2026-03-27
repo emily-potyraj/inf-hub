@@ -1,0 +1,21 @@
+<div style="display:flex;align-items:center;gap:0.75rem;font-size:0.74rem;color:var(--text-label)">
+  <span>
+    {% if status.timestamp %}
+      Sentinel: {{ status.matched }} matched · {{ status.timestamp[:10] }}
+    {% else %}
+      Sentinel: not synced
+    {% endif %}
+    {% if status.get('error') %}
+      <span style="color:var(--red)"> · error</span>
+    {% endif %}
+  </span>
+  {% if user %}
+    <button
+      hx-post="/sentinel/sync"
+      hx-swap="none"
+      hx-on::after-request="this.textContent='Synced ✓'; setTimeout(() => this.textContent='Sync now', 2000)"
+      style="background:none;border:1px solid var(--border);border-radius:4px;padding:1px 8px;cursor:pointer;color:var(--text-label);font-size:0.74rem">
+      Sync now
+    </button>
+  {% endif %}
+</div>
