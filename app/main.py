@@ -19,6 +19,7 @@ from app.auth import get_current_user
 from app.routers import workloads as workloads_router, configs, team, auth_router
 from app.routers import breadth_studies as breadth_studies_router
 from app.routers import devzone as devzone_router
+from app.routers import sentinel as sentinel_router
 from app.routers.workloads import _to_row
 
 app = FastAPI(title="inf-hub")
@@ -31,6 +32,7 @@ app.include_router(team.router)
 app.include_router(auth_router.router)
 app.include_router(breadth_studies_router.router)
 app.include_router(devzone_router.router)
+app.include_router(sentinel_router.router)
 
 
 _CURVE_COLORS = [
