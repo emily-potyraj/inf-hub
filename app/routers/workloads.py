@@ -248,6 +248,8 @@ def update_field(
         db, workload_id, user["name"], user["email"], field, old_value, payload.value
     )
     setattr(w, field, payload.value)
+    if field == "amd_tps":
+        w.amd_tps_source = "manual"
     try:
         db.commit()
     except Exception:

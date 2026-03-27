@@ -126,3 +126,11 @@ def test_work_type_unknown_field_returns_400(auth_client):
     w_id = r.json()["id"]
     r2 = auth_client.patch(f"/workloads/{w_id}/nonexistent_field", json={"value": "foo"})
     assert r2.status_code == 400
+
+
+def test_patch_amd_tps_sets_source_manual(auth_client):
+    r = auth_client.post("/workloads", json=WORKLOAD_BASE)
+    w_id = r.json()["id"]
+    auth_client.patch(f"/workloads/{w_id}/amd_tps", json={"value": 1500.0})
+    r2 = auth_client.get(f"/workloads/{w_id}")
+    assert r2.json()["amd_tps_source"] == "manual"
