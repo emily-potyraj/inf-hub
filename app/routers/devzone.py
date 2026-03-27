@@ -270,6 +270,95 @@ async def add_curves(
     return [_curve_row(c) for c in all_curves]
 
 
+@router.get("/sentinel-analyses")
+def get_sentinel_analyses(
+    model: str,
+    seqlen: str,
+    db: Session = Depends(get_db),
+):
+    """Return workloads matching model+seqlen that have Sentinel data, for devzone import modal."""
+    from app.models import Workload
+    workloads = (
+        db.query(Workload)
+        .filter(
+            Workload.model == model,
+            Workload.seqlens == seqlen,
+            Workload.sentinel_threat_level.isnot(None),
+        )
+        .all()
+    )
+    return [
+        {
+            "workload_id": w.id,
+            "hardware": w.hardware,
+            "framework": w.framework,
+            "precision": w.precision,
+            "sentinel_threat_level": w.sentinel_threat_level,
+            "sentinel_summary": w.sentinel_summary,
+            "amd_tps_sentinel_value": w.amd_tps_sentinel_value,
+            "pic": w.pic,
+        }
+        for w in workloads
+    ]
+
+
+class SentinelCurveImport(BaseModel):
+    workload_id: int
+
+
+@router.post("/scenes/{scene_id}/curves/sentinel")
+def add_sentinel_curve(
+    scene_id: str,
+    payload: SentinelCurveImport,
+    db: Session = Depends(get_db),
+    user=Depends(require_auth),
+):
+    from app.models import Workload
+    import json as _json
+
+    scene = db.query(DevzoneScene).filter(DevzoneScene.id == scene_id).first()
+    if not scene:
+        raise HTTPException(status_code=404, detail="Scene not found")
+
+    workload = db.query(Workload).filter(Workload.id == payload.workload_id).first()
+    if not workload:
+        raise HTTPException(status_code=404, detail="Workload not found")
+
+    if workload.amd_tps_sentinel_value is None:
+        raise HTTPException(status_code=422, detail="Workload has no Sentinel AMD TPS value")
+
+    # Count existing curves to pick color
+    existing_count = db.query(DevzoneCurve).filter(DevzoneCurve.scene_id == scene_id).count()
+    color = CURVE_COLORS[existing_count % len(CURVE_COLORS)]
+
+    # Single-point approximation: y = amd_tps_sentinel_value, x = 0 (approximate)
+    points = _json.dumps([{
+        "x": 0,
+        "y": workload.amd_tps_sentinel_value,
+        "concurrency": None,
+        "sentinel_approximate": True,
+    }])
+
+    curve = DevzoneCurve(
+        id=str(uuid.uuid4()),
+        scene_id=scene_id,
+        label="AMD (SA \u2014 approximate)",
+        hardware=workload.hardware,
+        framework=workload.framework,
+        precision=workload.precision,
+        color=color,
+        ibdb_source=f"Sentinel \u00b7 {workload.sentinel_summary or ''}",
+        uploaded_by=user.get("name"),
+        points=points,
+        inf_hub_workload_id=str(workload.id),
+    )
+    db.add(curve)
+    db.commit()
+    db.refresh(curve)
+
+    return _curve_row(curve)
+
+
 @router.delete("/curves/{curve_id}")
 def delete_curve(
     curve_id: str,

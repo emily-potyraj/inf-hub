@@ -1,0 +1,31 @@
+{% if analyses %}
+  <div style="display:flex;flex-direction:column;gap:0.5rem">
+    {% for a in analyses %}
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--row-alt);border-radius:4px;font-size:0.80rem">
+        <div>
+          <span style="color:var(--text)">{{ a.hardware }}</span>
+          {% if a.framework %}<span style="color:var(--text-muted)"> · {{ a.framework }}</span>{% endif %}
+          {% if a.precision %}<span style="color:var(--text-muted)"> · {{ a.precision }}</span>{% endif %}
+          {% if a.sentinel_threat_level %}
+            {% set sc = "var(--green)" if a.sentinel_threat_level == "GREEN" else ("var(--amber)" if a.sentinel_threat_level == "YELLOW" else "var(--red)") %}
+            <span style="margin-left:6px;padding:1px 6px;border-radius:3px;border:1px solid {{ sc }};color:{{ sc }};font-size:0.72rem">SA: {{ a.sentinel_threat_level }}</span>
+          {% endif %}
+          {% if a.pic %}<span style="color:var(--text-label);margin-left:6px">owner: {{ a.pic }}</span>{% endif %}
+        </div>
+        <button type="button"
+                hx-post="/devzone/scenes/{{ scene_id }}/curves/sentinel"
+                hx-vals='{"workload_id": {{ a.workload_id }}}'
+                hx-target="#curves-section"
+                hx-swap="outerHTML"
+                style="padding:3px 10px;border-radius:4px;background:var(--green);color:#000;border:none;cursor:pointer;font-size:0.76rem;font-weight:600">
+          Import
+        </button>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p style="font-size:0.80rem;color:var(--text-muted)">
+    No Sentinel data found for {{ model }} / {{ seqlen }}.
+    Run a Sentinel sync or add name mappings in <code>data/sentinel_mappings.json</code>.
+  </p>
+{% endif %}

@@ -274,3 +274,90 @@ def test_add_curves_xlsx_dispatch(auth_client):
     data = r2.json()
     assert len(data) == 1
     assert data[0]["label"] == "GB300"
+
+
+WORKLOAD_BASE_SENTINEL = {
+    "model": "DSR1", "hardware": "B200", "framework": "TRT-LLM",
+    "precision": "FP8", "scenario": "agg", "seqlens": "1k/1k",
+}
+
+
+def test_sentinel_analyses_endpoint_returns_matched_workloads(auth_client, db):
+    r = auth_client.post("/workloads", json=WORKLOAD_BASE_SENTINEL)
+    w_id = r.json()["id"]
+    from app.models import Workload
+    wl = db.query(Workload).filter(Workload.id == w_id).first()
+    wl.sentinel_threat_level = "RED"
+    wl.sentinel_summary = "AMD ahead"
+    wl.amd_tps_sentinel_value = 2100.0
+    db.commit()
+
+    r2 = auth_client.get("/devzone/sentinel-analyses?model=DSR1&seqlen=1k%2F1k")
+    assert r2.status_code == 200
+    data = r2.json()
+    assert len(data) == 1
+    assert data[0]["workload_id"] == w_id
+    assert data[0]["sentinel_threat_level"] == "RED"
+    assert data[0]["amd_tps_sentinel_value"] == 2100.0
+
+
+def test_sentinel_analyses_excludes_workloads_without_sentinel_data(auth_client):
+    auth_client.post("/workloads", json=WORKLOAD_BASE_SENTINEL)
+    r = auth_client.get("/devzone/sentinel-analyses?model=DSR1&seqlen=1k%2F1k")
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+def test_add_sentinel_curve_to_scene(auth_client, db):
+    scene_r = auth_client.post("/devzone/scenes", json={"name": "Test Scene", "model": "DSR1", "seqlen": "1k/1k"})
+    scene_id = scene_r.json()["id"]
+
+    wl_r = auth_client.post("/workloads", json=WORKLOAD_BASE_SENTINEL)
+    w_id = wl_r.json()["id"]
+    from app.models import Workload
+    wl = db.query(Workload).filter(Workload.id == w_id).first()
+    wl.sentinel_threat_level = "RED"
+    wl.amd_tps_sentinel_value = 2100.0
+    wl.sentinel_summary = "AMD ahead"
+    db.commit()
+
+    r = auth_client.post(
+        f"/devzone/scenes/{scene_id}/curves/sentinel",
+        json={"workload_id": w_id},
+    )
+    assert r.status_code == 200
+    curve = r.json()
+    assert curve["label"] == "AMD (SA \u2014 approximate)"
+    assert curve["hardware"] == "B200"
+    assert curve["inf_hub_workload_id"] == str(w_id)
+
+    export = auth_client.get(f"/devzone/scenes/{scene_id}/export").json()
+    assert any(c["label"] == "AMD (SA \u2014 approximate)" for c in export["curves"])
+
+
+def test_add_sentinel_curve_requires_auth(client):
+    r = client.post("/devzone/scenes/fake-id/curves/sentinel", json={"workload_id": 1})
+    assert r.status_code == 401
+
+
+def test_add_sentinel_curve_workload_not_found(auth_client):
+    scene_r = auth_client.post("/devzone/scenes", json={"name": "S", "model": "M", "seqlen": "1k/1k"})
+    scene_id = scene_r.json()["id"]
+    r = auth_client.post(
+        f"/devzone/scenes/{scene_id}/curves/sentinel",
+        json={"workload_id": 99999},
+    )
+    assert r.status_code == 404
+
+
+def test_add_sentinel_curve_no_sentinel_value(auth_client, db):
+    scene_r = auth_client.post("/devzone/scenes", json={"name": "S", "model": "M", "seqlen": "1k/1k"})
+    scene_id = scene_r.json()["id"]
+    wl_r = auth_client.post("/workloads", json=WORKLOAD_BASE_SENTINEL)
+    w_id = wl_r.json()["id"]
+    # workload has no amd_tps_sentinel_value
+    r = auth_client.post(
+        f"/devzone/scenes/{scene_id}/curves/sentinel",
+        json={"workload_id": w_id},
+    )
+    assert r.status_code == 422
