@@ -56,6 +56,13 @@ def _to_row(w: Workload) -> WorkloadRow:
     d["gap_pct"] = _compute_gap(w.nv_tps, w.amd_tps)
     if w.last_updated:
         d["last_updated"] = w.last_updated.isoformat()
+    d["amd_tps_source"] = w.amd_tps_source
+    d["amd_tps_sentinel_value"] = w.amd_tps_sentinel_value
+    d["amd_tps_synced_at"] = w.amd_tps_synced_at.isoformat() if w.amd_tps_synced_at else None
+    d["sentinel_threat_level"] = w.sentinel_threat_level
+    d["sentinel_summary"] = w.sentinel_summary
+    d["sentinel_image_url"] = w.sentinel_image_url
+    d["sentinel_synced_at"] = w.sentinel_synced_at.isoformat() if w.sentinel_synced_at else None
     return WorkloadRow(**d)
 
 

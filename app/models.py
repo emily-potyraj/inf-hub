@@ -33,6 +33,13 @@ class Workload(Base):
     accuracy_status = Column(Text, nullable=False, default="not_run")
     nv_tps = Column(Float)
     amd_tps = Column(Float)
+    amd_tps_source          = Column(Text)          # 'manual' | 'sentinel'
+    amd_tps_sentinel_value  = Column(Float)
+    amd_tps_synced_at       = Column(DateTime)
+    sentinel_threat_level   = Column(Text)           # 'GREEN' | 'YELLOW' | 'RED'
+    sentinel_summary        = Column(Text)
+    sentinel_image_url      = Column(Text)
+    sentinel_synced_at      = Column(DateTime)
     dl_perf_published = Column(Text)
     infmax_submitted = Column(Text)
     nvmax_recipe_url = Column(Text)
@@ -119,4 +126,5 @@ class DevzoneCurve(Base):
     ibdb_source = Column(Text)
     uploaded_by = Column(Text)
     uploaded_at = Column(DateTime, default=_now)
+    inf_hub_workload_id = Column(Text)   # nullable FK to workloads.id, app-enforced
     points      = Column(Text, nullable=False)   # JSON string

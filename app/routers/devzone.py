@@ -53,6 +53,7 @@ def _curve_row(curve: DevzoneCurve) -> dict:
         "ibdb_source": curve.ibdb_source,
         "uploaded_by": curve.uploaded_by,
         "uploaded_at": curve.uploaded_at.isoformat() if curve.uploaded_at else None,
+        "inf_hub_workload_id": curve.inf_hub_workload_id,
     }
 
 
