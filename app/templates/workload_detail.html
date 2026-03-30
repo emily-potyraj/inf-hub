@@ -6,11 +6,19 @@
   <a href="/" style="color:var(--text-muted);font-size:0.82rem;text-decoration:none">← Workloads</a>
   <span style="color:var(--border)">/</span>
   <span class="font-metric font-bold text-xl">{{ w.model }}</span>
-  <span style="color:var(--text-muted)">{{ w.hardware }} · {{ w.framework }} · {{ w.precision }} · {{ w.scenario }} · {{ w.seqlens }}</span>
+  <span style="color:var(--text-muted)">{{ w.hardware }} · {{ w.framework }} · {{ w.precision }} · {{ w.scenario }}{% if w.seqlens %} · {{ w.seqlens }}{% endif %}</span>
+  {% if w.priority %}
+    <span class="badge badge-p{{ w.priority }}">P{{ w.priority }}</span>
+  {% endif %}
+  {% if w.status == "published" %}<span class="badge badge-green">{{ w.status }}</span>
+  {% elif w.status == "accuracy_gate" %}<span class="badge badge-amber">{{ w.status }}</span>
+  {% elif w.status == "not_started" or not w.status %}<span class="badge badge-muted">{{ w.status or "not_started" }}</span>
+  {% else %}<span class="badge badge-blue">{{ w.status }}</span>{% endif %}
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 420px;gap:1.5rem;align-items:start">
 
+  {# ── Left column: editable fields ── #}
   <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem">
     <div class="flex items-center justify-between mb-4">
       <h2 class="font-metric font-semibold" style="font-size:0.9rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-label)">Details</h2>
@@ -19,54 +27,210 @@
       {% endif %}
     </div>
 
-    {% macro field_row(label, field_name, value, editable=true) %}
-    <div style="display:grid;grid-template-columns:140px 1fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border)">
-      <span style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;padding-top:2px">{{ label }}</span>
-      <span
-        {% if user and editable %}
-        class="editable-field"
-        hx-get="/workloads/{{ w.id }}/{{ field_name }}/edit"
-        hx-trigger="click"
-        hx-target="this"
-        hx-swap="outerHTML"
-        {% endif %}
-        style="font-size:0.85rem"
-      >{{ value if value is not none else "—" }}</span>
+    {# Generic editable field row macro #}
+    {% macro field_row(label, field_name, value) %}
+    <div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;padding-top:3px">{{ label }}</span>
+      {% if editable %}
+        <span class="editable-field"
+          hx-get="/workloads/{{ w.id }}/{{ field_name }}/edit"
+          hx-trigger="click" hx-target="this" hx-swap="outerHTML"
+          style="font-size:0.85rem;cursor:pointer">{{ value if value is not none and value != "" else "—" }}</span>
+      {% else %}
+        <span style="font-size:0.85rem;color:var(--text-muted)">{{ value if value is not none and value != "" else "—" }}</span>
+      {% endif %}
     </div>
     {% endmacro %}
 
-    {{ field_row("Status", "status", w.status) }}
-    {{ field_row("PIC", "pic", w.pic) }}
-    {{ field_row("Priority", "priority", w.priority) }}
-    {{ field_row("Story", "story_label", w.story_label) }}
+    {# Status row with badge #}
+    <div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;padding-top:3px">Status</span>
+      {% if editable %}
+        <span class="editable-field" hx-get="/workloads/{{ w.id }}/status/edit" hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+          {% if w.status == "published" %}<span class="badge badge-green">{{ w.status }}</span>
+          {% elif w.status == "accuracy_gate" %}<span class="badge badge-amber">{{ w.status }}</span>
+          {% elif w.status == "not_started" or not w.status %}<span class="badge badge-muted">{{ w.status or "not_started" }}</span>
+          {% else %}<span class="badge badge-blue">{{ w.status }}</span>{% endif %}
+        </span>
+      {% else %}
+        {% if w.status == "published" %}<span class="badge badge-green">{{ w.status }}</span>
+        {% elif w.status == "accuracy_gate" %}<span class="badge badge-amber">{{ w.status }}</span>
+        {% elif w.status == "not_started" or not w.status %}<span class="badge badge-muted">{{ w.status or "not_started" }}</span>
+        {% else %}<span class="badge badge-blue">{{ w.status }}</span>{% endif %}
+      {% endif %}
+    </div>
+
+    {# PIC row #}
+    <div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;padding-top:3px">PIC</span>
+      {% if editable %}
+        <span class="editable-field" hx-get="/workloads/{{ w.id }}/pic/edit" hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+          {% if w.pic %}<span>{{ w.pic }}</span>
+          {% else %}<span style="color:var(--amber);font-size:0.82rem">⚠ unassigned</span>{% endif %}
+        </span>
+      {% else %}
+        {% if w.pic %}<span style="font-size:0.85rem">{{ w.pic }}</span>
+        {% else %}<span style="color:var(--amber);font-size:0.82rem">⚠ unassigned</span>{% endif %}
+      {% endif %}
+    </div>
+
+    {# Priority row #}
+    <div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;padding-top:3px">Priority</span>
+      {% if editable %}
+        <span class="editable-field" hx-get="/workloads/{{ w.id }}/priority/edit" hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+          {% if w.priority %}<span class="badge badge-p{{ w.priority }}">P{{ w.priority }}</span>
+          {% else %}<span style="color:var(--text-label)">—</span>{% endif %}
+        </span>
+      {% else %}
+        {% if w.priority %}<span class="badge badge-p{{ w.priority }}">P{{ w.priority }}</span>
+        {% else %}<span style="color:var(--text-label)">—</span>{% endif %}
+      {% endif %}
+    </div>
+
+    {# Work type row #}
+    <div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;padding-top:3px">Type</span>
+      {% if editable %}
+        <span class="editable-field" hx-get="/workloads/{{ w.id }}/work_type/edit" hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+          {% if w.work_type == "breadth_test" %}<span class="badge badge-blue">{{ w.work_type }}</span>
+          {% elif w.work_type %}<span class="badge badge-muted">{{ w.work_type }}</span>
+          {% else %}<span style="color:var(--text-label)">—</span>{% endif %}
+        </span>
+      {% else %}
+        {% if w.work_type == "breadth_test" %}<span class="badge badge-blue">{{ w.work_type }}</span>
+        {% elif w.work_type %}<span class="badge badge-muted">{{ w.work_type }}</span>
+        {% else %}<span style="color:var(--text-label)">—</span>{% endif %}
+      {% endif %}
+    </div>
+
+    {{ field_row("Story label", "story_label", w.story_label) }}
     {{ field_row("Accuracy", "accuracy_status", w.accuracy_status) }}
-    {{ field_row("NV TPS", "nv_tps", w.nv_tps) }}
-    {{ field_row("AMD TPS", "amd_tps", w.amd_tps) }}
+
+    {# TPS section #}
+    <div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;padding-top:3px">NV TPS</span>
+      {% if editable %}
+        <span class="editable-field font-metric" hx-get="/workloads/{{ w.id }}/nv_tps/edit" hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+          {% if w.nv_tps is not none %}{{ "%.0f"|format(w.nv_tps) }}{% else %}<span style="color:var(--text-label)">—</span>{% endif %}
+        </span>
+      {% else %}
+        <span class="font-metric" style="font-size:0.85rem">{% if w.nv_tps is not none %}{{ "%.0f"|format(w.nv_tps) }}{% else %}—{% endif %}</span>
+      {% endif %}
+    </div>
+
+    <div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;padding-top:3px">AMD TPS</span>
+      {% if editable %}
+        <span class="editable-field font-metric" hx-get="/workloads/{{ w.id }}/amd_tps/edit" hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+          {% if w.amd_tps is not none %}{{ "%.0f"|format(w.amd_tps) }}{% else %}<span style="color:var(--text-label)">—</span>{% endif %}
+        </span>
+      {% else %}
+        <span class="font-metric" style="font-size:0.85rem">{% if w.amd_tps is not none %}{{ "%.0f"|format(w.amd_tps) }}{% else %}—{% endif %}</span>
+      {% endif %}
+    </div>
+
     {% if w.gap_pct is not none %}
-    <div style="display:grid;grid-template-columns:140px 1fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+    <div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border)">
       <span style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">Gap vs AMD</span>
       <span class="font-metric {% if w.gap_pct >= 0 %}gap-win{% else %}gap-behind{% endif %}">{{ "%+.1f"|format(w.gap_pct * 100) }}%</span>
     </div>
     {% endif %}
+
+    {# InfMax submitted with badge #}
+    <div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;padding-top:3px">InfMax</span>
+      {% if editable %}
+        <span class="editable-field" hx-get="/workloads/{{ w.id }}/infmax_submitted/edit" hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+          {% if w.infmax_submitted %}<span class="badge badge-green">✓ {{ w.infmax_submitted }}</span>
+          {% else %}<span style="color:var(--text-label)">—</span>{% endif %}
+        </span>
+      {% else %}
+        {% if w.infmax_submitted %}<span class="badge badge-green">✓ {{ w.infmax_submitted }}</span>
+        {% else %}<span style="color:var(--text-label)">—</span>{% endif %}
+      {% endif %}
+    </div>
+
+    {# Link fields — render as actual links #}
+    <div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;padding-top:3px">IBDB link</span>
+      {% if editable %}
+        <span class="editable-field" hx-get="/workloads/{{ w.id }}/ibdb_link/edit" hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+          {% if w.ibdb_link %}<a href="{{ w.ibdb_link }}" target="_blank" rel="noopener" style="color:var(--blue);font-size:0.85rem" onclick="event.stopPropagation()">IBDB ↗</a>
+          {% else %}<span style="color:var(--text-label)">—</span>{% endif %}
+        </span>
+      {% else %}
+        {% if w.ibdb_link %}<a href="{{ w.ibdb_link }}" target="_blank" rel="noopener" style="color:var(--blue);font-size:0.85rem">IBDB ↗</a>
+        {% else %}<span style="color:var(--text-label)">—</span>{% endif %}
+      {% endif %}
+    </div>
+
+    <div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;padding-top:3px">NVMax recipe</span>
+      {% if editable %}
+        <span class="editable-field" hx-get="/workloads/{{ w.id }}/nvmax_recipe_url/edit" hx-trigger="click" hx-target="this" hx-swap="outerHTML">
+          {% if w.nvmax_recipe_url %}<a href="{{ w.nvmax_recipe_url }}" target="_blank" rel="noopener" style="color:var(--blue);font-size:0.85rem" onclick="event.stopPropagation()">Recipe ↗</a>
+          {% else %}<span style="color:var(--text-label)">—</span>{% endif %}
+        </span>
+      {% else %}
+        {% if w.nvmax_recipe_url %}<a href="{{ w.nvmax_recipe_url }}" target="_blank" rel="noopener" style="color:var(--blue);font-size:0.85rem">Recipe ↗</a>
+        {% else %}<span style="color:var(--text-label)">—</span>{% endif %}
+      {% endif %}
+    </div>
+
     {{ field_row("DLPerf published", "dl_perf_published", w.dl_perf_published) }}
-    {{ field_row("InfMax submitted", "infmax_submitted", w.infmax_submitted) }}
-    {{ field_row("NVMax recipe", "nvmax_recipe_url", w.nvmax_recipe_url) }}
-    {{ field_row("IBDB link", "ibdb_link", w.ibdb_link) }}
-    {{ field_row("Notes", "notes", w.notes) }}
+
+    {# Notes — textarea #}
+    <div style="padding:0.5rem 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.4rem">Notes</div>
+      {% if editable %}
+        <span class="editable-field" style="display:block;min-height:2em;white-space:pre-wrap;font-size:0.85rem"
+          hx-get="/workloads/{{ w.id }}/notes/edit"
+          hx-trigger="click" hx-target="this" hx-swap="outerHTML">{{ w.notes or "—" }}</span>
+      {% else %}
+        <span style="display:block;white-space:pre-wrap;font-size:0.85rem;color:var(--text-muted)">{{ w.notes or "—" }}</span>
+      {% endif %}
+    </div>
+
+    {# Identity fields — read-only #}
+    <div style="margin-top:1rem;padding-top:0.5rem">
+      <div style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.5rem">Identity</div>
+      {% for label, val in [
+        ("Model", w.model), ("Hardware", w.hardware), ("Framework", w.framework),
+        ("Precision", w.precision), ("Scenario", w.scenario), ("Seqlens", w.seqlens)
+      ] %}
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem;padding:0.3rem 0">
+        <span style="font-size:0.72rem;color:var(--text-label)">{{ label }}</span>
+        <span style="font-size:0.85rem;color:var(--text-muted)">{{ val or "—" }}</span>
+      </div>
+      {% endfor %}
+      {% if w.study_id %}
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem;padding:0.3rem 0">
+        <span style="font-size:0.72rem;color:var(--text-label)">Study ID</span>
+        <span style="font-size:0.78rem;color:var(--text-label);font-family:'Rajdhani',sans-serif" title="{{ w.study_id }}">{{ w.study_id[:12] }}…</span>
+      </div>
+      {% endif %}
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:0.5rem;padding:0.3rem 0">
+        <span style="font-size:0.72rem;color:var(--text-label)">Created</span>
+        <span style="font-size:0.82rem;color:var(--text-muted)">{{ (w.created_at | string)[:16] if w.created_at else "—" }}</span>
+      </div>
+    </div>
+
   </div>
 
+  {# ── Right column: configs + audit ── #}
   <div style="display:flex;flex-direction:column;gap:1.5rem">
+
     <div id="config-panel" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem">
       {% include "partials/config_history.html" %}
 
-      {# ── Sentinel section ──────────────────────────────────────────────── #}
+      {# Sentinel section #}
       {% if w.sentinel_threat_level or w.amd_tps_sentinel_value is not none %}
       <details open style="margin-top:1.5rem">
         <summary style="cursor:pointer;font-size:0.82rem;font-weight:600;color:var(--text-muted);letter-spacing:0.05em;text-transform:uppercase;user-select:none">
           Sentinel (SemiAnalysis)
         </summary>
         <div style="margin-top:0.75rem;display:flex;flex-direction:column;gap:0.5rem">
-
           {% if w.sentinel_threat_level %}
             {% set s_color = "var(--green)" if w.sentinel_threat_level == "GREEN" else ("var(--amber)" if w.sentinel_threat_level == "YELLOW" else "var(--red)") %}
             <div style="display:flex;align-items:center;gap:0.5rem">
@@ -78,45 +242,41 @@
               {% endif %}
             </div>
           {% endif %}
-
           {% if w.amd_tps_sentinel_value is not none %}
             <div style="font-size:0.82rem">
               <span style="color:var(--text-label)">SA-extracted AMD TPS:</span>
-              <span style="font-family:'Rajdhani',sans-serif;color:var(--text)">{{ "%.0f"|format(w.amd_tps_sentinel_value) }}</span>
+              <span class="font-metric" style="color:var(--text)">{{ "%.0f"|format(w.amd_tps_sentinel_value) }}</span>
               {% if w.amd_tps_synced_at %}
-                <span style="color:var(--text-label);font-size:0.76rem">· synced {{ w.amd_tps_synced_at }}</span>
+                <span style="color:var(--text-label);font-size:0.76rem"> · synced {{ (w.amd_tps_synced_at | string)[:10] }}</span>
               {% endif %}
             </div>
             {% if w.amd_tps_source == "manual" and w.amd_tps is not none and w.amd_tps != 0 %}
               {% set diff_pct = ((w.amd_tps_sentinel_value - w.amd_tps) / w.amd_tps * 100) | abs %}
               {% if diff_pct > 5 %}
                 <div style="font-size:0.78rem;color:var(--amber);padding:4px 8px;background:rgba(251,191,36,0.1);border-radius:4px;border:1px solid rgba(251,191,36,0.3)">
-                  &#9888; Sentinel value ({{ "%.0f"|format(w.amd_tps_sentinel_value) }}) differs from manually-entered AMD TPS ({{ "%.0f"|format(w.amd_tps) }}) by {{ "%.0f"|format(diff_pct) }}% — review
+                  ⚠ Sentinel value ({{ "%.0f"|format(w.amd_tps_sentinel_value) }}) differs from manually-entered AMD TPS ({{ "%.0f"|format(w.amd_tps) }}) by {{ "%.0f"|format(diff_pct) }}% — review
                 </div>
               {% endif %}
             {% endif %}
           {% endif %}
-
           {% if w.sentinel_image_url %}
-            <div style="margin-top:0.25rem">
-              <a href="{{ w.sentinel_image_url }}" target="_blank" rel="noopener"
-                 style="font-size:0.80rem;color:var(--blue);text-decoration:none">
-                View on Sentinel dashboard &#8599;
-              </a>
-            </div>
+            <a href="{{ w.sentinel_image_url }}" target="_blank" rel="noopener"
+               style="font-size:0.80rem;color:var(--blue);text-decoration:none">
+              View on Sentinel dashboard ↗
+            </a>
           {% endif %}
-
           {% if w.sentinel_synced_at %}
-            <div style="font-size:0.74rem;color:var(--text-label)">Last synced: {{ w.sentinel_synced_at }}</div>
+            <div style="font-size:0.74rem;color:var(--text-label)">Last synced: {{ (w.sentinel_synced_at | string)[:10] }}</div>
           {% endif %}
-
         </div>
       </details>
       {% endif %}
     </div>
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem;max-height:400px;overflow-y:auto">
+
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem;max-height:500px;overflow-y:auto">
       {% include "partials/audit_trail.html" %}
     </div>
+
   </div>
 
 </div>

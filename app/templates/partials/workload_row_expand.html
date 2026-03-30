@@ -6,9 +6,9 @@
         <span class="editable-field detail-val"
           style="display:block;min-height:1.5em;white-space:pre-wrap"
           hx-get="/workloads/{{ w.id }}/notes/edit"
-          hx-trigger="click" hx-target="this" hx-swap="outerHTML">{{ w.notes or "&#8212;" }}</span>
+          hx-trigger="click" hx-target="this" hx-swap="outerHTML">{{ w.notes or "—" }}</span>
       {% else %}
-        <span class="detail-val" style="white-space:pre-wrap">{{ w.notes or "&#8212;" }}</span>
+        <span class="detail-val" style="white-space:pre-wrap">{{ w.notes or "—" }}</span>
       {% endif %}
     </div>
     <div>
@@ -16,9 +16,9 @@
       {% if true %}
         <span class="editable-field detail-val"
           hx-get="/workloads/{{ w.id }}/story_label/edit"
-          hx-trigger="click" hx-target="this" hx-swap="outerHTML">{{ w.story_label or "&#8212;" }}</span>
+          hx-trigger="click" hx-target="this" hx-swap="outerHTML">{{ w.story_label or "—" }}</span>
       {% else %}
-        <span class="detail-val">{{ w.story_label or "&#8212;" }}</span>
+        <span class="detail-val">{{ w.story_label or "—" }}</span>
       {% endif %}
     </div>
     <div>
@@ -54,10 +54,10 @@
     <div>
       <div class="detail-label">Timeline</div>
       <div class="detail-val">
-        Created: {{ (w.created_at | string)[:16] if w.created_at else "&#8212;" }}
+        Created: {{ (w.created_at | string)[:16] if w.created_at else "—" }}
       </div>
       <div class="detail-val">
-        Updated: {{ (w.last_updated | string)[:16] if w.last_updated else "&#8212;" }}
+        Updated: {{ (w.last_updated | string)[:16] if w.last_updated else "—" }}
       </div>
     </div>
     <div>
@@ -66,8 +66,8 @@
         {% for entry in audit %}
           <div class="audit-entry">
             <span style="color:var(--text)">{{ entry.field_name }}</span>
-            <span style="color:var(--text-label)"> {{ entry.old_value or "&#8709;" }} &#8594; </span>
-            <span style="color:var(--text)">{{ entry.new_value or "&#8709;" }}</span>
+            <span style="color:var(--text-label)"> {{ entry.old_value or "∅" }} → </span>
+            <span style="color:var(--text)">{{ entry.new_value or "∅" }}</span>
             <span style="color:var(--text-label);float:right">{{ entry.user_name }} &#183; {{ entry.timestamp.isoformat()[:10] if entry.timestamp else "" }}</span>
           </div>
         {% endfor %}
