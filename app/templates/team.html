@@ -15,10 +15,25 @@
     <tbody>
       {% for tf in functions %}
       <tr class="wl-row">
+        {% if user %}
+        <td><input value="{{ tf.function }}" style="background:transparent;border:none;outline:none;color:var(--text);font-family:inherit;font-size:inherit;width:100%"
+              hx-patch="/team/functions/{{ tf.id }}" hx-trigger="blur" hx-swap="none"
+              hx-vals="js:{function: event.target.value}"></td>
+        <td><input value="{{ tf.owner or '' }}" placeholder="—" style="background:transparent;border:none;outline:none;color:var(--text);font-family:inherit;font-size:inherit;width:100%"
+              hx-patch="/team/functions/{{ tf.id }}" hx-trigger="blur" hx-swap="none"
+              hx-vals="js:{owner: event.target.value}"></td>
+        <td><input value="{{ tf.backup or '' }}" placeholder="—" style="background:transparent;border:none;outline:none;color:var(--text-muted);font-family:inherit;font-size:inherit;width:100%"
+              hx-patch="/team/functions/{{ tf.id }}" hx-trigger="blur" hx-swap="none"
+              hx-vals="js:{backup: event.target.value}"></td>
+        <td><input value="{{ tf.notes or '' }}" placeholder="—" style="background:transparent;border:none;outline:none;color:var(--text-muted);font-family:inherit;font-size:0.78rem;width:100%"
+              hx-patch="/team/functions/{{ tf.id }}" hx-trigger="blur" hx-swap="none"
+              hx-vals="js:{notes: event.target.value}"></td>
+        {% else %}
         <td>{{ tf.function }}</td>
         <td>{{ tf.owner or "—" }}</td>
         <td style="color:var(--text-muted)">{{ tf.backup or "—" }}</td>
         <td style="color:var(--text-muted);font-size:0.78rem">{{ tf.notes or "" }}</td>
+        {% endif %}
       </tr>
       {% else %}
       <tr><td colspan="4" style="color:var(--text-label);padding:1rem">No functions defined yet.</td></tr>

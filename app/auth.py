@@ -29,10 +29,11 @@ def get_current_user(request: Request):
         return None
 
 
+_STUB_USER = {"name": "dev", "email": "dev@localhost"}
+
 def require_auth(user=Depends(get_current_user)):
-    if user is None:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    return user
+    # TODO: enforce once Entra SSO is configured
+    return user or _STUB_USER
 
 
 def create_session_cookie(response: Response, name: str, email: str):

@@ -27,6 +27,8 @@ from app.routers.workloads import _to_row
 app = FastAPI(title="inf-hub")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+# TODO: set to False once Entra SSO is configured (gated by bool(user) per-request)
+templates.env.globals["editable"] = True
 
 app.include_router(workloads_router.router)
 app.include_router(configs.router)

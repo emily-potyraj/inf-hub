@@ -18,6 +18,7 @@ class TeamFunctionCreate(BaseModel):
 
 
 class TeamFunctionUpdate(BaseModel):
+    function: Optional[str] = None
     owner: Optional[str] = None
     backup: Optional[str] = None
     notes: Optional[str] = None
