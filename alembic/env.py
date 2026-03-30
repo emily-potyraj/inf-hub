@@ -1,3 +1,4 @@
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -20,6 +21,22 @@ if config.config_file_name is not None:
 # add your model's MetaData object here
 # for 'autogenerate' support
 target_metadata = Base.metadata
+
+# ---------------------------------------------------------------------------
+# DOWNGRADE GUARD — protect production data
+# ---------------------------------------------------------------------------
+_migration_command = os.environ.get("ALEMBIC_CMD", "")
+if "downgrade" in " ".join(
+    __import__("sys").argv
+) and not os.environ.get("ALLOW_DESTRUCTIVE_MIGRATION"):
+    raise SystemExit(
+        "\n\n"
+        "  *** BLOCKED: alembic downgrade is disabled to protect production data ***\n"
+        "  infhub.db contains business-critical data.\n"
+        "  To override (only in dev with throwaway data), set:\n"
+        "    ALLOW_DESTRUCTIVE_MIGRATION=1 alembic downgrade ...\n"
+    )
+# ---------------------------------------------------------------------------
 
 
 def run_migrations_offline() -> None:

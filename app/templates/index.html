@@ -54,11 +54,15 @@
   <span class="stat-review">{{ stats.in_review }} in review</span>
   <span class="stat-search">{{ stats.config_search }} config search</span>
   <span style="color:var(--text-label)">{{ stats.not_started }} not started</span>
-  {% if not user %}
-    <span style="margin-left:auto;color:var(--text-label);font-size:0.76rem">
-      <a href="/auth/login" style="color:var(--blue)">Sign in</a> to edit
-    </span>
-  {% endif %}
+  <span style="margin-left:auto;display:flex;align-items:center;gap:0.5rem">
+    <button onclick="collapseAll()" class="badge badge-muted" style="cursor:pointer;padding:3px 10px;font-size:0.74rem;border:none">&#9654; Collapse all</button>
+    <button onclick="expandAll()" class="badge badge-muted" style="cursor:pointer;padding:3px 10px;font-size:0.74rem;border:none">&#9660; Expand all</button>
+    {% if not user %}
+      <span style="color:var(--text-label);font-size:0.76rem">
+        <a href="/auth/login" style="color:var(--blue)">Sign in</a>
+      </span>
+    {% endif %}
+  </span>
 </div>
 
 {# ── Workload matrix ───────────────────────────────────────────── #}
@@ -146,7 +150,7 @@
 
             {# seqlens — editable #}
             <td style="font-size:0.80rem;font-family:'Rajdhani',sans-serif;letter-spacing:0.03em">
-              {% if user %}
+              {% if editable %}
                 <span class="editable-field"
                   hx-get="/workloads/{{ w.id }}/seqlens/edit"
                   hx-trigger="click" hx-target="this" hx-swap="outerHTML"
@@ -158,7 +162,7 @@
 
             {# status — editable badge #}
             <td>
-              {% if user %}
+              {% if editable %}
                 <span class="editable-field"
                   hx-get="/workloads/{{ w.id }}/status/edit"
                   hx-trigger="click" hx-target="this" hx-swap="outerHTML">
@@ -179,7 +183,7 @@
 
             {# pic — editable #}
             <td>
-              {% if user %}
+              {% if editable %}
                 <span class="editable-field"
                   hx-get="/workloads/{{ w.id }}/pic/edit"
                   hx-trigger="click" hx-target="this" hx-swap="outerHTML">
@@ -194,7 +198,7 @@
 
             {# priority — editable #}
             <td>
-              {% if user %}
+              {% if editable %}
                 <span class="editable-field"
                   hx-get="/workloads/{{ w.id }}/priority/edit"
                   hx-trigger="click" hx-target="this" hx-swap="outerHTML">
@@ -209,7 +213,7 @@
 
             {# work_type — editable #}
             <td>
-              {% if user %}
+              {% if editable %}
                 <span class="editable-field"
                   hx-get="/workloads/{{ w.id }}/work_type/edit"
                   hx-trigger="click" hx-target="this" hx-swap="outerHTML">
@@ -226,7 +230,7 @@
 
             {# nv_tps — editable #}
             <td class="font-metric">
-              {% if user %}
+              {% if editable %}
                 <span class="editable-field"
                   hx-get="/workloads/{{ w.id }}/nv_tps/edit"
                   hx-trigger="click" hx-target="this" hx-swap="outerHTML">
@@ -239,7 +243,7 @@
 
             {# amd_tps — editable #}
             <td class="font-metric">
-              {% if user %}
+              {% if editable %}
                 <span class="editable-field"
                   hx-get="/workloads/{{ w.id }}/amd_tps/edit"
                   hx-trigger="click" hx-target="this" hx-swap="outerHTML">
@@ -258,7 +262,7 @@
 
             {# infmax_submitted — editable #}
             <td>
-              {% if user %}
+              {% if editable %}
                 <span class="editable-field"
                   hx-get="/workloads/{{ w.id }}/infmax_submitted/edit"
                   hx-trigger="click" hx-target="this" hx-swap="outerHTML">
@@ -273,7 +277,7 @@
 
             {# ibdb_link — editable #}
             <td>
-              {% if user %}
+              {% if editable %}
                 <span class="editable-field"
                   hx-get="/workloads/{{ w.id }}/ibdb_link/edit"
                   hx-trigger="click" hx-target="this" hx-swap="outerHTML">
@@ -329,7 +333,7 @@
 </div>
 
 {# ── Add workload modal (auth-gated) ───────────────────────────── #}
-{% if user %}
+{% if editable %}
 <div id="add-modal" class="hidden fixed inset-0 flex items-center justify-center" style="background:rgba(0,0,0,0.6);z-index:100">
   <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem;width:480px">
     <h2 class="font-metric text-lg font-bold mb-4">Add Workload</h2>
@@ -359,6 +363,18 @@
 {% endif %}
 
 <script>
+// ── Collapse / expand all groups ────────────────────────────────
+function collapseAll() {
+  document.querySelectorAll('[data-group-toggle]').forEach(btn => {
+    if (btn.dataset.open === "1") toggleGroup(btn.dataset.groupToggle);
+  });
+}
+function expandAll() {
+  document.querySelectorAll('[data-group-toggle]').forEach(btn => {
+    if (btn.dataset.open === "0") toggleGroup(btn.dataset.groupToggle);
+  });
+}
+
 // ── Group collapse ───────────────────────────────────────────────
 function toggleGroup(gid) {
   const btn = document.querySelector(`[data-group-toggle="${gid}"]`);

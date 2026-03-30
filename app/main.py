@@ -241,6 +241,7 @@ def index(
         "stale_threshold": stale_threshold,
         "latest_configs": latest_configs,
         "stats": stats,
+        "editable": True,  # TODO: set to bool(user) once Entra SSO is configured
     })
 
 
@@ -249,7 +250,7 @@ def add_page(
     request: Request,
     user=Depends(get_current_user),
 ):
-    return templates.TemplateResponse("add.html", {"request": request, "user": user})
+    return templates.TemplateResponse("add.html", {"request": request, "user": user, "editable": True})
 
 
 @app.get("/overview")
@@ -282,6 +283,7 @@ def devzone_compare_page(
     return templates.TemplateResponse("devzone_compare.html", {
         "request": request,
         "user": user,
+        "editable": True,
         "scene_a": scene_a,
         "scene_b": scene_b,
         "traces_a": _traces(a),
@@ -315,6 +317,7 @@ def devzone_page(
     return templates.TemplateResponse("devzone.html", {
         "request": request,
         "user": user,
+        "editable": True,
         "scenes": scenes,
         "selected": selected,
         "curves": curves,

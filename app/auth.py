@@ -12,7 +12,7 @@ ENTRA_TENANT_ID = os.getenv("ENTRA_TENANT_ID", "nvidia.onmicrosoft.com")
 ENTRA_AUTHORIZE_URL = f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}/oauth2/v2.0/authorize"
 ENTRA_TOKEN_URL = f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}/oauth2/v2.0/token"
 ENTRA_USERINFO_URL = "https://graph.microsoft.com/v1.0/me"
-REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:8000/auth/callback")
+REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:9000/auth/callback")
 
 
 def _serializer():
@@ -29,10 +29,11 @@ def get_current_user(request: Request):
         return None
 
 
+# TODO: enforce auth once Entra app registration is in place.
+# For now, edits are open so the app can be tested before SSO is configured.
 _STUB_USER = {"name": "dev", "email": "dev@localhost"}
 
 def require_auth(user=Depends(get_current_user)):
-    # TODO: enforce once Entra SSO is configured
     return user or _STUB_USER
 
 

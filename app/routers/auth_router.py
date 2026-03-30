@@ -1,6 +1,6 @@
 import httpx
 from fastapi import APIRouter, Request, Response
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 
 from app.auth import (
     ENTRA_CLIENT_ID, ENTRA_CLIENT_SECRET, ENTRA_AUTHORIZE_URL,
@@ -14,6 +14,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.get("/login")
 def login(request: Request):
     from urllib.parse import urlencode
+    if not ENTRA_CLIENT_ID or not ENTRA_CLIENT_SECRET:
+        return HTMLResponse(
+            "<h2 style='font-family:sans-serif;padding:2rem'>Login not configured yet.<br>"
+            "<small>Entra app registration pending — contact the team to set up "
+            "<code>ENTRA_CLIENT_ID</code> and <code>ENTRA_CLIENT_SECRET</code>.</small></h2>",
+            status_code=503,
+        )
     params = {
         "client_id": ENTRA_CLIENT_ID,
         "response_type": "code",
@@ -21,12 +28,11 @@ def login(request: Request):
         "scope": "openid email profile User.Read",
         "state": "infhub",
     }
-    url = f"{ENTRA_AUTHORIZE_URL}?{urlencode(params)}"
-    return RedirectResponse(url)
+    return RedirectResponse(f"{ENTRA_AUTHORIZE_URL}?{urlencode(params)}")
 
 
 @router.get("/callback")
-async def callback(request: Request, response: Response, code: str, state: str = ""):
+async def callback(request: Request, code: str, state: str = ""):
     async with httpx.AsyncClient() as client:
         token_resp = await client.post(ENTRA_TOKEN_URL, data={
             "client_id": ENTRA_CLIENT_ID,
@@ -44,7 +50,7 @@ async def callback(request: Request, response: Response, code: str, state: str =
         )
         user_data = user_resp.json()
 
-    name = user_data.get("displayName", user_data.get("userPrincipalName", "Unknown"))
+    name = user_data.get("displayName") or user_data.get("userPrincipalName", "Unknown")
     email = user_data.get("mail") or user_data.get("userPrincipalName", "")
 
     redirect = RedirectResponse(url="/", status_code=302)
@@ -54,7 +60,7 @@ async def callback(request: Request, response: Response, code: str, state: str =
 
 @router.get("/logout")
 def logout():
-    resp = Response(content="Logged out", status_code=200)
+    resp = RedirectResponse(url="/", status_code=302)
     clear_session_cookie(resp)
     return resp
 

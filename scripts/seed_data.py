@@ -14,8 +14,8 @@ db = SessionLocal()
 # ─── Team Functions ────────────────────────────────────────────────────────────
 
 TEAM_FUNCTIONS = [
-    dict(function="VPR / Management",       owner="Kedar Pandurang Potdar", backup=None,
-         notes="VP of Research; oversees InferenceX org"),
+    dict(function="VPR",                     owner="Kedar Pandurang Potdar", backup=None,
+         notes="oversees InferenceX submissions, point person to interface with SA"),
     dict(function="Product Management",      owner="Nick Comly",             backup=None,
          notes="PM lead; sets scope, priorities, and SA relationship"),
     dict(function="Competitive Analysis",    owner="Edwin Mascarenhas",      backup=None,

@@ -2,7 +2,7 @@
   <div class="detail-col">
     <div>
       <div class="detail-label">Notes</div>
-      {% if user is defined and user %}
+      {% if true %}
         <span class="editable-field detail-val"
           style="display:block;min-height:1.5em;white-space:pre-wrap"
           hx-get="/workloads/{{ w.id }}/notes/edit"
@@ -13,7 +13,7 @@
     </div>
     <div>
       <div class="detail-label">Story Label</div>
-      {% if user is defined and user %}
+      {% if true %}
         <span class="editable-field detail-val"
           hx-get="/workloads/{{ w.id }}/story_label/edit"
           hx-trigger="click" hx-target="this" hx-swap="outerHTML">{{ w.story_label or "&#8212;" }}</span>
@@ -23,7 +23,7 @@
     </div>
     <div>
       <div class="detail-label">Accuracy</div>
-      {% if user is defined and user %}
+      {% if true %}
         <span class="editable-field"
           hx-get="/workloads/{{ w.id }}/accuracy_status/edit"
           hx-trigger="click" hx-target="this" hx-swap="outerHTML">

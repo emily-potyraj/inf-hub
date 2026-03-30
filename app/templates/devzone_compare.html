@@ -16,7 +16,7 @@
   <div>
     {% if scene_a %}
     <div class="flex items-center justify-between mb-3">
-      {% if user %}
+      {% if editable %}
       <input type="text" value="{{ scene_a.name }}"
              class="text-base font-semibold bg-transparent border-none outline-none"
              style="color:var(--text); font-family:inherit"
@@ -61,7 +61,7 @@
   <div>
     {% if scene_b %}
     <div class="flex items-center justify-between mb-3">
-      {% if user %}
+      {% if editable %}
       <input type="text" value="{{ scene_b.name }}"
              class="text-base font-semibold bg-transparent border-none outline-none"
              style="color:var(--text); font-family:inherit"

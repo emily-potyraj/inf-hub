@@ -8,7 +8,7 @@
   <aside style="width:280px; flex-shrink:0; border-right:1px solid var(--border); padding-right:1.5rem">
     <div class="flex items-center justify-between mb-4">
       <h2 class="font-metric text-sm font-semibold" style="color:var(--text-muted); letter-spacing:0.08em; text-transform:uppercase">Scenes</h2>
-      {% if user %}
+      {% if editable %}
       <button onclick="document.getElementById('new-scene-modal').style.display='flex'"
               class="text-xs px-2 py-1 rounded"
               style="background:var(--green); color:#000; font-weight:600">+ New</button>
@@ -31,7 +31,7 @@
           {{ s.curve_count }} curve{% if s.curve_count != 1 %}s{% endif %} ·
           by {{ s.created_by or 'unknown' }}
         </div>
-        {% if user and selected and selected.id == s.id %}
+        {% if editable and selected and selected.id == s.id %}
         <div class="flex gap-2 mt-2">
           <button onclick="openCompareModal('{{ s.id }}')"
                   class="text-xs px-2 py-1 rounded"
@@ -54,7 +54,7 @@
     <!-- Scene header -->
     <div class="flex items-start justify-between mb-4">
       <div>
-        {% if user %}
+        {% if editable %}
         <input type="text"
                value="{{ selected.name }}"
                class="text-xl font-semibold bg-transparent border-none outline-none"
@@ -75,7 +75,7 @@
            style="background:var(--row-alt); color:var(--text-muted); border:1px solid var(--border); text-decoration:none">
           Export JSON
         </a>
-        {% if user %}
+        {% if editable %}
         {% if not selected.is_published %}
         <button hx-patch="/devzone/scenes/{{ selected.id }}/publish"
                 hx-swap="none"
@@ -126,7 +126,7 @@
     <div class="mt-6">
       <div class="flex items-center justify-between mb-3">
         <h3 class="text-sm font-semibold" style="color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em">Curves</h3>
-        {% if user %}
+        {% if editable %}
         <button onclick="document.getElementById('add-curves-modal').style.display='flex'"
                 class="text-xs px-2 py-1 rounded"
                 style="background:var(--row-alt); color:var(--text); border:1px solid var(--border)">
@@ -164,7 +164,7 @@
             <td class="py-2 pr-4 text.xs" style="color:var(--text-muted)">{{ c.ibdb_source or '—' }}</td>
             <td class="py-2 pr-4 text-xs" style="color:var(--text-muted)">{{ c.uploaded_by or '—' }}</td>
             <td class="py-2">
-              {% if user %}
+              {% if editable %}
               <button hx-delete="/devzone/curves/{{ c.id }}"
                       hx-confirm="Remove this curve?"
                       hx-swap="none"

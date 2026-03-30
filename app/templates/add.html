@@ -9,7 +9,7 @@
   </div>
 </div>
 
-{% if not user %}
+{% if not editable %}
 <div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.5rem">
   <p style="color:var(--amber);font-size:0.9rem;margin:0">
     You must <a href="/auth/login" style="color:var(--amber);font-weight:600;text-decoration:underline">sign in</a> to submit workloads.
@@ -46,11 +46,11 @@
       ] %}
       <div class="mb-3">
         <label class="block mb-1" style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">{{ field }}</label>
-        <input name="{{ field }}" placeholder="{{ placeholder }}" required class="edit-input w-full" {% if not user %}disabled{% endif %}>
+        <input name="{{ field }}" placeholder="{{ placeholder }}" required class="edit-input w-full" {% if not editable %}disabled{% endif %}>
       </div>
       {% endfor %}
       <div class="flex gap-3 mt-4">
-        <button type="submit" class="badge badge-green" style="cursor:pointer;padding:6px 14px;font-size:0.82rem" {% if not user %}disabled style="opacity:0.5;cursor:not-allowed"{% endif %}>Add Workload</button>
+        <button type="submit" class="badge badge-green" style="cursor:pointer;padding:6px 14px;font-size:0.82rem" {% if not editable %}disabled style="opacity:0.5;cursor:not-allowed"{% endif %}>Add Workload</button>
         <a href="/" class="badge badge-muted" style="cursor:pointer;padding:6px 14px;font-size:0.82rem;text-decoration:none">Cancel</a>
       </div>
     </form>
@@ -76,9 +76,9 @@
     <div id="breadth-step-1">
       <div class="mb-4">
         <label class="block mb-1" style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">Study Name</label>
-        <input id="study-name" type="text" placeholder="e.g. B200 FP8 sweep Q1-2026" class="edit-input" style="width:100%;max-width:400px" {% if not user %}disabled{% endif %}>
+        <input id="study-name" type="text" placeholder="e.g. B200 FP8 sweep Q1-2026" class="edit-input" style="width:100%;max-width:400px" {% if not editable %}disabled{% endif %}>
       </div>
-      <button onclick="gotoStep(2)" class="badge badge-green" style="cursor:pointer;padding:6px 14px;font-size:0.82rem" {% if not user %}disabled{% endif %}>Next →</button>
+      <button onclick="gotoStep(2)" class="badge badge-green" style="cursor:pointer;padding:6px 14px;font-size:0.82rem" {% if not editable %}disabled{% endif %}>Next →</button>
     </div>
 
     <!-- Step 2: Dimensions -->
@@ -89,12 +89,12 @@
           ("dim-hardware", "Hardware", "B200, H100"),
           ("dim-frameworks", "Frameworks", "vLLM, TRT-LLM"),
           ("dim-precisions", "Precisions", "FP8, BF16"),
-          ("dim-scenarios", "Scenarios", "agg, ind"),
+          ("dim-scenarios", "Scenarios", "agg + wideEP, disagg + wideEP"),
           ("dim-seqlens", "Seqlens", "1k/1k, 8k/1k"),
         ] %}
         <div>
           <label class="block mb-1" style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">{{ dim_label }}</label>
-          <textarea id="{{ dim_id }}" rows="3" placeholder="{{ dim_placeholder }}" class="edit-input w-full" oninput="updateCrossproduct()" {% if not user %}disabled{% endif %}></textarea>
+          <textarea id="{{ dim_id }}" rows="3" placeholder="{{ dim_placeholder }}" class="edit-input w-full" oninput="updateCrossproduct()" {% if not editable %}disabled{% endif %}></textarea>
         </div>
         {% endfor %}
       </div>
@@ -103,7 +103,7 @@
       </p>
       <div class="flex gap-3">
         <button onclick="gotoStep(1)" class="badge badge-muted" style="cursor:pointer;padding:6px 14px;font-size:0.82rem">← Back</button>
-        <button onclick="gotoStep(3)" class="badge badge-green" style="cursor:pointer;padding:6px 14px;font-size:0.82rem" {% if not user %}disabled{% endif %}>Next →</button>
+        <button onclick="gotoStep(3)" class="badge badge-green" style="cursor:pointer;padding:6px 14px;font-size:0.82rem" {% if not editable %}disabled{% endif %}>Next →</button>
       </div>
     </div>
 
@@ -125,7 +125,7 @@
       </p>
       <div class="flex gap-3">
         <button onclick="gotoStep(2)" class="badge badge-muted" style="cursor:pointer;padding:6px 14px;font-size:0.82rem">← Back</button>
-        {% if user %}
+        {% if editable %}
         <button onclick="submitBreadthStudy()" class="badge badge-green" style="cursor:pointer;padding:6px 14px;font-size:0.82rem">Submit Study</button>
         {% else %}
         <span class="badge badge-muted" style="opacity:0.5;padding:6px 14px;font-size:0.82rem">Sign in to submit</span>

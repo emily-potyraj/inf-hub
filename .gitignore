@@ -9,3 +9,4 @@ data/configs/
 .venv/
 dist/
 infhub.db
+backups/
