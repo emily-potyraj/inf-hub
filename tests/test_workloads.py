@@ -1,6 +1,11 @@
 import pytest
 
 
+def _get_workload(client, w_id):
+    rows = client.get("/workloads").json()
+    return next(r for r in rows if r["id"] == w_id)
+
+
 WORKLOAD_BASE = {
     "model": "DSR1", "hardware": "B200", "framework": "vLLM",
     "precision": "FP8", "scenario": "agg", "seqlens": "1k/1k",
@@ -61,8 +66,8 @@ def test_gap_pct_computed(auth_client):
     w_id = r.json()["id"]
     auth_client.patch(f"/workloads/{w_id}/nv_tps", json={"value": 1000.0})
     auth_client.patch(f"/workloads/{w_id}/amd_tps", json={"value": 800.0})
-    r2 = auth_client.get(f"/workloads/{w_id}")
-    assert abs(r2.json()["gap_pct"] - 0.25) < 0.001
+    wl = _get_workload(auth_client, w_id)
+    assert abs(wl["gap_pct"] - 0.25) < 0.001
 
 
 def test_patch_field_requires_auth(client):
@@ -73,9 +78,9 @@ def test_patch_field_requires_auth(client):
 def test_get_workload_by_id(auth_client):
     r = auth_client.post("/workloads", json=WORKLOAD_BASE)
     w_id = r.json()["id"]
-    r2 = auth_client.get(f"/workloads/{w_id}")
-    assert r2.status_code == 200
-    assert r2.json()["model"] == "DSR1"
+    # Detail page returns HTML; verify via the list endpoint
+    rows = auth_client.get("/workloads").json()
+    assert any(row["id"] == w_id and row["model"] == "DSR1" for row in rows)
 
 
 def test_get_workload_not_found(client):
@@ -98,9 +103,7 @@ def test_patch_work_type(auth_client):
     w_id = r.json()["id"]
     r2 = auth_client.patch(f"/workloads/{w_id}/work_type", json={"value": "tune"})
     assert r2.status_code == 200
-    r3 = auth_client.get(f"/workloads/{w_id}")
-    assert r3.status_code == 200
-    assert r3.json()["work_type"] == "tune"
+    assert _get_workload(auth_client, w_id)["work_type"] == "tune"
 
 
 def test_patch_work_type_writes_audit_log(auth_client):
@@ -132,5 +135,4 @@ def test_patch_amd_tps_sets_source_manual(auth_client):
     r = auth_client.post("/workloads", json=WORKLOAD_BASE)
     w_id = r.json()["id"]
     auth_client.patch(f"/workloads/{w_id}/amd_tps", json={"value": 1500.0})
-    r2 = auth_client.get(f"/workloads/{w_id}")
-    assert r2.json()["amd_tps_source"] == "manual"
+    assert _get_workload(auth_client, w_id)["amd_tps_source"] == "manual"

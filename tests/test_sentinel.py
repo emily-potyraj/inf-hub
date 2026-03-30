@@ -3,6 +3,11 @@ import os
 import pytest
 from unittest.mock import patch, MagicMock
 
+
+def _get_workload(client, w_id):
+    rows = client.get("/workloads").json()
+    return next(r for r in rows if r["id"] == w_id)
+
 WORKLOAD_BASE = {
     "model": "DSR1", "hardware": "B200", "framework": "TRT-LLM",
     "precision": "FP8", "scenario": "agg", "seqlens": "1k/1k",
@@ -66,7 +71,7 @@ def test_sync_populates_sentinel_fields(auth_client, monkeypatch):
     assert r.status_code == 200
     data = r.json()
     assert data["matched"] == 1
-    wl = auth_client.get("/workloads/1").json()
+    wl = _get_workload(auth_client, auth_client.get("/workloads").json()[0]["id"])
     assert wl["sentinel_threat_level"] == "RED"
     assert wl["sentinel_summary"] == "AMD ahead on throughput by ~14%"
     assert "images/chart_dsr1_b200.jpg" in wl["sentinel_image_url"]
@@ -74,10 +79,11 @@ def test_sync_populates_sentinel_fields(auth_client, monkeypatch):
 
 
 def test_sync_sets_amd_tps_when_null(auth_client, monkeypatch):
-    auth_client.post("/workloads", json=WORKLOAD_BASE)
+    r = auth_client.post("/workloads", json=WORKLOAD_BASE)
+    w_id = r.json()["id"]
     with patch("httpx.get", side_effect=_mock_httpx_get):
         auth_client.post("/sentinel/sync")
-    wl = auth_client.get("/workloads/1").json()
+    wl = _get_workload(auth_client, w_id)
     assert wl["amd_tps"] == 2100.0
     assert wl["amd_tps_source"] == "sentinel"
     assert wl["amd_tps_sentinel_value"] == 2100.0
@@ -89,7 +95,7 @@ def test_sync_does_not_overwrite_manual_amd_tps(auth_client, monkeypatch):
     auth_client.patch(f"/workloads/{w_id}/amd_tps", json={"value": 9999.0})
     with patch("httpx.get", side_effect=_mock_httpx_get):
         auth_client.post("/sentinel/sync")
-    wl = auth_client.get(f"/workloads/{w_id}").json()
+    wl = _get_workload(auth_client, w_id)
     assert wl["amd_tps"] == 9999.0
     assert wl["amd_tps_source"] == "manual"
     assert wl["amd_tps_sentinel_value"] == 2100.0

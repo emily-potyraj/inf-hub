@@ -223,14 +223,6 @@ async def expand_workload(
     )
 
 
-@router.get("/{workload_id}", response_model=WorkloadRow)
-def get_workload(workload_id: int, db: Session = Depends(get_db)):
-    w = db.get(Workload, workload_id)
-    if not w:
-        raise HTTPException(status_code=404, detail="Not found")
-    return _to_row(w)
-
-
 @router.patch("/{workload_id}/{field}")
 def update_field(
     request: Request,
