@@ -1,11 +1,20 @@
 import pytest
+from fastapi import Depends, HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.auth import get_current_user, require_auth
 from app.database import Base, get_db
 from app.main import app
+
+
+def _strict_require_auth(user=Depends(get_current_user)):
+    """Override for tests: enforce real auth instead of returning stub user."""
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return user
 
 TEST_DATABASE_URL = "sqlite://"  # in-memory
 
@@ -42,6 +51,7 @@ def client(db):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[require_auth] = _strict_require_auth
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c
     app.dependency_overrides.clear()
@@ -57,6 +67,7 @@ def auth_client(db):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[require_auth] = _strict_require_auth
 
     with TestClient(app, raise_server_exceptions=False) as c:
         # Use the dev-session endpoint so the cookie is set via a proper Set-Cookie header,
