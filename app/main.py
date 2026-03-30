@@ -3,8 +3,10 @@ load_dotenv()
 
 import json as _json
 import re
+import os
 from collections import defaultdict, OrderedDict
 from datetime import datetime, timezone, timedelta
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
@@ -19,6 +21,7 @@ from app.auth import get_current_user
 from app.routers import workloads as workloads_router, configs, team, auth_router
 from app.routers import breadth_studies as breadth_studies_router
 from app.routers import devzone as devzone_router
+from app.routers import sentinel as sentinel_router
 from app.routers.workloads import _to_row
 
 app = FastAPI(title="inf-hub")
@@ -31,6 +34,35 @@ app.include_router(team.router)
 app.include_router(auth_router.router)
 app.include_router(breadth_studies_router.router)
 app.include_router(devzone_router.router)
+app.include_router(sentinel_router.router)
+
+_scheduler = BackgroundScheduler(daemon=True)
+
+
+def _run_daily_sentinel_sync() -> None:
+    """Called by APScheduler in a background thread."""
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        sentinel_router.sync_sentinel(db)
+    except Exception as exc:
+        print(f"[sentinel] daily sync error: {exc}")
+    finally:
+        db.close()
+
+
+@app.on_event("startup")
+def start_sentinel_scheduler() -> None:
+    if not _scheduler.running:
+        hour = int(os.getenv("SENTINEL_SYNC_HOUR", "6"))
+        _scheduler.add_job(_run_daily_sentinel_sync, "cron", hour=hour, minute=0)
+        _scheduler.start()
+
+
+@app.on_event("shutdown")
+def stop_sentinel_scheduler() -> None:
+    if _scheduler.running:
+        _scheduler.shutdown(wait=False)
 
 
 _CURVE_COLORS = [

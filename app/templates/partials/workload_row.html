@@ -2,7 +2,7 @@
 
 {# Group header for newly created workload #}
 <tr class="wl-group-header" id="group-new-{{ w.id }}">
-  <td colspan="12">
+  <td colspan="13">
     <div style="display:flex;align-items:center;gap:0.5rem">
       <button class="group-toggle" onclick="return false">&#9662;</button>
       <span style="color:var(--text);font-weight:500">{{ w.model }}</span>
@@ -89,11 +89,24 @@
     {% if cv %}<a href="/workloads/{{ w.id }}" style="color:var(--blue);font-size:0.78rem;text-decoration:none">v{{ cv }} &#8594;</a>
     {% else %}<a href="/workloads/{{ w.id }}" style="color:var(--text-label);font-size:0.78rem;text-decoration:none">detail &#8594;</a>{% endif %}
   </td>
+  <td>
+    {% if w.sentinel_threat_level %}
+      {% set pill_color = "var(--green)" if w.sentinel_threat_level == "GREEN" else ("var(--amber)" if w.sentinel_threat_level == "YELLOW" else "var(--red)") %}
+      {% set pill_label = "🟢 SA" if w.sentinel_threat_level == "GREEN" else ("🟡 SA" if w.sentinel_threat_level == "YELLOW" else "🔴 SA") %}
+      <a href="{{ w.sentinel_image_url or '#' }}" target="_blank" rel="noopener"
+         title="{{ w.sentinel_summary or '' }}"
+         style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:0.74rem;text-decoration:none;background:transparent;border:1px solid {{ pill_color }};color:{{ pill_color }}">
+        {{ pill_label }}
+      </a>
+    {% else %}
+      <span style="color:var(--text-label)">&#8212;</span>
+    {% endif %}
+  </td>
 </tr>
 
 {# Expand detail row #}
 <tr class="detail-row hidden" id="expand-row-{{ w.id }}">
-  <td colspan="12">
+  <td colspan="13">
     <div id="expand-content-{{ w.id }}" class="detail-panel">
       <div style="color:var(--text-muted);font-size:0.80rem">Loading&#8230;</div>
     </div>

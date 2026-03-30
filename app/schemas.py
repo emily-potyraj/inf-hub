@@ -48,6 +48,13 @@ class WorkloadRow(BaseModel):
     notes: Optional[str]
     work_type: Optional[str] = None
     study_id: Optional[str] = None
+    amd_tps_source:         Optional[str]   = None
+    amd_tps_sentinel_value: Optional[float] = None
+    amd_tps_synced_at:      Optional[str]   = None  # ISO string
+    sentinel_threat_level:  Optional[str]   = None
+    sentinel_summary:       Optional[str]   = None
+    sentinel_image_url:     Optional[str]   = None
+    sentinel_synced_at:     Optional[str]   = None  # ISO string
     last_updated: Optional[str]
 
     model_config = {"from_attributes": True}
@@ -116,6 +123,7 @@ class DevzoneCurveRow(BaseModel):
     ibdb_source: Optional[str] = None
     uploaded_by: Optional[str] = None
     uploaded_at: Optional[str] = None
+    inf_hub_workload_id: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

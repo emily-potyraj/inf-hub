@@ -39,6 +39,15 @@
     {% block content %}{% endblock %}
   </main>
 
+  <footer style="border-top:1px solid var(--border);background:#16181c;padding:0.5rem 1.5rem;margin-top:2rem">
+    <div class="max-w-screen-2xl mx-auto"
+         hx-get="/sentinel/status-fragment"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+      <span style="font-size:0.74rem;color:var(--text-label)">Loading sentinel status…</span>
+    </div>
+  </footer>
+
   <div id="toast-container"></div>
 
   <script>

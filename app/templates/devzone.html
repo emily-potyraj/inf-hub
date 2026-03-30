@@ -152,7 +152,11 @@
           <tr style="border-bottom:1px solid var(--border)">
             <td class="py-2 pr-4">
               <span class="inline-block w-3 h-3 rounded-full mr-2" style="background:{{ c.color or '#76b900' }}"></span>
-              {{ c.label }}
+              {% if c.inf_hub_workload_id %}
+                <a href="/workloads/{{ c.inf_hub_workload_id }}" target="_blank" style="color:var(--blue);text-decoration:none">{{ c.label }} ↗</a>
+              {% else %}
+                {{ c.label }}
+              {% endif %}
             </td>
             <td class="py-2 pr-4" style="color:var(--text-muted)">{{ c.hardware }}</td>
             <td class="py-2 pr-4" style="color:var(--text-muted)">{{ c.framework or '—' }}</td>
@@ -173,6 +177,11 @@
           {% endfor %}
         </tbody>
       </table>
+      {% if curves | selectattr('inf_hub_workload_id') | list %}
+      <p style="font-size:0.74rem;color:var(--text-label);margin-top:0.25rem;font-style:italic">
+        * AMD curves imported from SemiAnalysis via Sentinel are single-point approximations.
+      </p>
+      {% endif %}
       {% else %}
       <p class="text-sm" style="color:var(--text-muted)">No curves yet. Upload an IBDB export to add curves.</p>
       {% endif %}
@@ -225,87 +234,116 @@
 <div id="add-curves-modal"
      style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; align-items:center; justify-content:center">
   <div style="background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:2rem; width:520px; max-width:90vw">
-    <h3 class="text-lg font-semibold mb-4" style="color:var(--text)">Add Curves from IBDB</h3>
-
-    <!-- Step 1: File upload -->
-    <div id="modal-step-1">
-      <p class="text-sm mb-3" style="color:var(--text-muted)">Upload an IBDB export (.xlsx or .html) to preview available curves.</p>
-      <input type="file" id="ibdb-file-input" accept=".xlsx,.html"
-             class="text-sm mb-4" style="color:var(--text)">
-      <div class="mb-3">
-        <label class="text-xs" style="color:var(--text-muted)">Paste IBDB URL</label>
-        <input type="text" placeholder="API integration coming soon" disabled
-               class="w-full mt-1 px-3 py-2 rounded text-sm"
-               style="background:var(--row-alt); border:1px solid var(--border); color:var(--text-muted); cursor:not-allowed">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-semibold" style="color:var(--text)">Add Curves</h3>
+      <button type="button" onclick="document.getElementById('add-curves-modal').style.display='none'"
+              style="color:var(--text-muted);background:none;border:none;cursor:pointer;font-size:1rem">✕</button>
+    </div>
+    <!-- Tab switcher -->
+    <div class="flex gap-2 mb-4" style="border-bottom:1px solid var(--border); padding-bottom:0.5rem">
+      <button type="button" onclick="switchAddTab('upload')" id="tab-upload"
+              style="padding:4px 12px;border-radius:4px;font-size:0.80rem;border:1px solid var(--green);cursor:pointer;color:var(--green);background:transparent">
+        Upload IBDB
+      </button>
+      <button type="button" onclick="switchAddTab('sentinel')" id="tab-sentinel"
+              style="padding:4px 12px;border-radius:4px;font-size:0.80rem;border:1px solid transparent;cursor:pointer;color:var(--text-muted);background:transparent">
+        Import from Sentinel
+      </button>
+    </div>
+    <!-- Upload panel -->
+    <div id="add-panel-upload">
+      <div id="modal-step-1">
+        <p class="text-sm mb-3" style="color:var(--text-muted)">Upload an IBDB export (.xlsx or .html) to preview available curves.</p>
+        <input type="file" id="ibdb-file-input" accept=".xlsx,.html"
+               class="text-sm mb-4" style="color:var(--text)">
+        <div class="mb-3">
+          <label class="text-xs" style="color:var(--text-muted)">Paste IBDB URL</label>
+          <input type="text" placeholder="API integration coming soon" disabled
+                 class="w-full mt-1 px-3 py-2 rounded text-sm"
+                 style="background:var(--row-alt); border:1px solid var(--border); color:var(--text-muted); cursor:not-allowed"
+                 title="IBDB API integration coming soon">
+        </div>
+        <div class="flex gap-2 justify-end">
+          <button type="button" onclick="document.getElementById('add-curves-modal').style.display='none'"
+                  class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Cancel</button>
+          <button type="button" onclick="previewCurves()"
+                  class="text-sm px-3 py-1.5 rounded font-semibold"
+                  style="background:var(--green); color:#000">Preview</button>
+        </div>
       </div>
-      <div class="flex gap-2 justify-end">
-        <button type="button" onclick="document.getElementById('add-curves-modal').style.display='none'"
-                class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Cancel</button>
-        <button type="button" onclick="previewCurves()"
-                class="text-sm px-3 py-1.5 rounded font-semibold"
-                style="background:var(--green); color:#000">Preview</button>
+
+      <!-- Step 2: Pick chips (Excel only) -->
+      <div id="modal-step-2" style="display:none">
+        <p class="text-sm mb-1 font-medium" style="color:var(--text)">Step 2 of 4 — Select chip(s)</p>
+        <p class="text-xs mb-3" style="color:var(--text-muted)">Which hardware platform(s) do you want to import curves for?</p>
+        <div id="chip-checklist" class="mb-4"></div>
+        <div class="flex gap-2 justify-end">
+          <button type="button" onclick="goToStep(1)"
+                  class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Back</button>
+          <button type="button" onclick="goToStep(3)"
+                  class="text-sm px-3 py-1.5 rounded font-semibold"
+                  style="background:var(--green); color:#000">Next</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Pick framework + precision (Excel only) -->
+      <div id="modal-step-3" style="display:none">
+        <p class="text-sm mb-1 font-medium" style="color:var(--text)">Step 3 of 4 — Select framework + precision</p>
+        <p class="text-xs mb-3" style="color:var(--text-muted)">Which framework and precision variant(s)?</p>
+        <div id="fw-checklist" class="mb-4"></div>
+        <div class="flex gap-2 justify-end">
+          <button type="button" onclick="goToStep(2)"
+                  class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Back</button>
+          <button type="button" onclick="goToStep(4)"
+                  class="text-sm px-3 py-1.5 rounded font-semibold"
+                  style="background:var(--green); color:#000">Next</button>
+        </div>
+      </div>
+
+      <!-- Step 4: Pick seqlen(s) (Excel only) -->
+      <div id="modal-step-4" style="display:none">
+        <p class="text-sm mb-1 font-medium" style="color:var(--text)">Step 4 of 4 — Select ISL/OSL</p>
+        <p class="text-xs mb-3" style="color:var(--text-muted)">Which input/output sequence length combination(s)?</p>
+        <div id="seqlen-checklist" class="mb-4"></div>
+        <div id="excel-duplicate-warning" style="display:none" class="text-xs mb-3 p-2 rounded"
+             style="background:#3b1f00; color:#fbbf24; border:1px solid #fbbf24">
+          One or more selected curves already exist in this scene and will be added with a date suffix.
+        </div>
+        <div class="flex gap-2 justify-end">
+          <button type="button" onclick="goToStep(3)"
+                  class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Back</button>
+          <button type="button" onclick="confirmExcelCurves()"
+                  class="text-sm px-3 py-1.5 rounded font-semibold"
+                  style="background:var(--green); color:#000">Add Curves</button>
+        </div>
+      </div>
+
+      <!-- Step 2 (HTML flat checklist — shown for .html files) -->
+      <div id="modal-step-html" style="display:none">
+        <div id="series-checklist" class="mb-4"></div>
+        <div id="duplicate-warning" style="display:none" class="text-xs mb-3 p-2 rounded"
+             style="background:#3b1f00; color:#fbbf24; border:1px solid #fbbf24">
+          One or more curves already exist in this scene and will be added with a date suffix.
+        </div>
+        <div class="flex gap-2 justify-end">
+          <button type="button" onclick="goToStep(1)"
+                  class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Back</button>
+          <button type="button" onclick="confirmAddCurves()"
+                  class="text-sm px-3 py-1.5 rounded font-semibold"
+                  style="background:var(--green); color:#000">Add Selected</button>
+        </div>
       </div>
     </div>
-
-    <!-- Step 2: Pick chips (Excel only) -->
-    <div id="modal-step-2" style="display:none">
-      <p class="text-sm mb-1 font-medium" style="color:var(--text)">Step 2 of 4 — Select chip(s)</p>
-      <p class="text-xs mb-3" style="color:var(--text-muted)">Which hardware platform(s) do you want to import curves for?</p>
-      <div id="chip-checklist" class="mb-4"></div>
-      <div class="flex gap-2 justify-end">
-        <button type="button" onclick="goToStep(1)"
-                class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Back</button>
-        <button type="button" onclick="goToStep(3)"
-                class="text-sm px-3 py-1.5 rounded font-semibold"
-                style="background:var(--green); color:#000">Next</button>
-      </div>
-    </div>
-
-    <!-- Step 3: Pick framework + precision (Excel only) -->
-    <div id="modal-step-3" style="display:none">
-      <p class="text-sm mb-1 font-medium" style="color:var(--text)">Step 3 of 4 — Select framework + precision</p>
-      <p class="text-xs mb-3" style="color:var(--text-muted)">Which framework and precision variant(s)?</p>
-      <div id="fw-checklist" class="mb-4"></div>
-      <div class="flex gap-2 justify-end">
-        <button type="button" onclick="goToStep(2)"
-                class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Back</button>
-        <button type="button" onclick="goToStep(4)"
-                class="text-sm px-3 py-1.5 rounded font-semibold"
-                style="background:var(--green); color:#000">Next</button>
-      </div>
-    </div>
-
-    <!-- Step 4: Pick seqlen(s) (Excel only) -->
-    <div id="modal-step-4" style="display:none">
-      <p class="text-sm mb-1 font-medium" style="color:var(--text)">Step 4 of 4 — Select ISL/OSL</p>
-      <p class="text-xs mb-3" style="color:var(--text-muted)">Which input/output sequence length combination(s)?</p>
-      <div id="seqlen-checklist" class="mb-4"></div>
-      <div id="excel-duplicate-warning" style="display:none" class="text-xs mb-3 p-2 rounded"
-           style="background:#3b1f00; color:#fbbf24; border:1px solid #fbbf24">
-        One or more selected curves already exist in this scene and will be added with a date suffix.
-      </div>
-      <div class="flex gap-2 justify-end">
-        <button type="button" onclick="goToStep(3)"
-                class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Back</button>
-        <button type="button" onclick="confirmExcelCurves()"
-                class="text-sm px-3 py-1.5 rounded font-semibold"
-                style="background:var(--green); color:#000">Add Curves</button>
-      </div>
-    </div>
-
-    <!-- Step 2 (HTML flat checklist — shown for .html files) -->
-    <div id="modal-step-html" style="display:none">
-      <div id="series-checklist" class="mb-4"></div>
-      <div id="duplicate-warning" style="display:none" class="text-xs mb-3 p-2 rounded"
-           style="background:#3b1f00; color:#fbbf24; border:1px solid #fbbf24">
-        One or more curves already exist in this scene and will be added with a date suffix.
-      </div>
-      <div class="flex gap-2 justify-end">
-        <button type="button" onclick="goToStep(1)"
-                class="text-sm px-3 py-1.5 rounded" style="color:var(--text-muted)">Back</button>
-        <button type="button" onclick="confirmAddCurves()"
-                class="text-sm px-3 py-1.5 rounded font-semibold"
-                style="background:var(--green); color:#000">Add Selected</button>
+    <!-- Sentinel panel -->
+    <div id="add-panel-sentinel" style="display:none">
+      <p style="font-size:0.80rem;color:var(--text-muted);margin-bottom:0.75rem">
+        Import an AMD reference curve from InferenceX Sentinel for this scene's model and seqlen.
+        Curves are single-point approximations extracted by LLM from SemiAnalysis charts.
+      </p>
+      <div hx-get="/sentinel/analyses-fragment?model={{ selected.model }}&seqlen={{ selected.seqlen }}&scene_id={{ selected.id }}"
+           hx-trigger="intersect once"
+           hx-swap="innerHTML">
+        <span style="color:var(--text-muted);font-size:0.80rem">Loading…</span>
       </div>
     </div>
 
@@ -338,6 +376,24 @@
 
 <script>
 var currentSceneId = "{{ selected.id if selected else '' }}";
+
+function switchAddTab(tab) {
+  var panels = ['upload', 'sentinel'];
+  panels.forEach(function(p) {
+    var panel = document.getElementById('add-panel-' + p);
+    var btn = document.getElementById('tab-' + p);
+    if (panel) panel.style.display = (p === tab) ? 'block' : 'none';
+    if (btn) {
+      if (p === tab) {
+        btn.style.border = '1px solid var(--green)';
+        btn.style.color = 'var(--green)';
+      } else {
+        btn.style.border = '1px solid transparent';
+        btn.style.color = 'var(--text-muted)';
+      }
+    }
+  });
+}
 
 function openCompareModal(sceneId) {
   currentSceneId = sceneId;
