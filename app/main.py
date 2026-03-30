@@ -30,6 +30,38 @@ templates = Jinja2Templates(directory="app/templates")
 # TODO: set to False once Entra SSO is configured (gated by bool(user) per-request)
 templates.env.globals["editable"] = True
 
+@app.get("/workloads/{workload_id}")
+def workload_detail(
+    request: Request,
+    workload_id: int,
+    config: int = None,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    w = db.get(Workload, workload_id)
+    if not w:
+        from fastapi.responses import Response
+        return Response(status_code=404, content="Not found")
+    row = _to_row(w)
+    wl_configs = (
+        db.query(ConfigVersion)
+        .filter(ConfigVersion.workload_id == workload_id)
+        .order_by(ConfigVersion.version_num.desc())
+        .all()
+    )
+    audit = (
+        db.query(AuditLog)
+        .filter(AuditLog.workload_id == workload_id)
+        .order_by(AuditLog.timestamp.desc())
+        .all()
+    )
+    return templates.TemplateResponse("workload_detail.html", {
+        "request": request, "w": row, "configs": wl_configs,
+        "audit": audit, "user": user, "highlight_config": config,
+        "workload_id": workload_id,
+    })
+
+
 app.include_router(workloads_router.router)
 app.include_router(configs.router)
 app.include_router(team.router)
@@ -322,38 +354,6 @@ def devzone_page(
         "selected": selected,
         "curves": curves,
         "traces_json": traces_json,
-    })
-
-
-@app.get("/workloads/{workload_id}")
-def workload_detail(
-    request: Request,
-    workload_id: int,
-    config: int = None,
-    db: Session = Depends(get_db),
-    user=Depends(get_current_user),
-):
-    w = db.get(Workload, workload_id)
-    if not w:
-        from fastapi.responses import Response
-        return Response(status_code=404, content="Not found")
-    row = _to_row(w)
-    wl_configs = (
-        db.query(ConfigVersion)
-        .filter(ConfigVersion.workload_id == workload_id)
-        .order_by(ConfigVersion.version_num.desc())
-        .all()
-    )
-    audit = (
-        db.query(AuditLog)
-        .filter(AuditLog.workload_id == workload_id)
-        .order_by(AuditLog.timestamp.desc())
-        .all()
-    )
-    return templates.TemplateResponse("workload_detail.html", {
-        "request": request, "w": row, "configs": wl_configs,
-        "audit": audit, "user": user, "highlight_config": config,
-        "workload_id": workload_id,
     })
 
 
