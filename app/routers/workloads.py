@@ -170,6 +170,8 @@ def create_workload(
     user=Depends(require_auth),
 ):
     w = Workload(**payload.model_dump())
+    if payload.amd_tps is not None:
+        w.amd_tps_source = "manual"
     db.add(w)
     try:
         db.commit()

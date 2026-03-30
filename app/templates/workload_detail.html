@@ -87,7 +87,7 @@
                 <span style="color:var(--text-label);font-size:0.76rem">· synced {{ w.amd_tps_synced_at }}</span>
               {% endif %}
             </div>
-            {% if w.amd_tps_source == "manual" and w.amd_tps is not none %}
+            {% if w.amd_tps_source == "manual" and w.amd_tps is not none and w.amd_tps != 0 %}
               {% set diff_pct = ((w.amd_tps_sentinel_value - w.amd_tps) / w.amd_tps * 100) | abs %}
               {% if diff_pct > 5 %}
                 <div style="font-size:0.78rem;color:var(--amber);padding:4px 8px;background:rgba(251,191,36,0.1);border-radius:4px;border:1px solid rgba(251,191,36,0.3)">

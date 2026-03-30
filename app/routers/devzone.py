@@ -10,7 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import DevzoneScene, DevzoneCurve
+from app.models import DevzoneScene, DevzoneCurve, Workload
 from app.schemas import DevzoneSceneCreate
 from app.auth import require_auth
 from app.devzone_parser import parse_ibdb_export, parse_ibdb_excel, CURVE_COLORS
@@ -277,7 +277,6 @@ def get_sentinel_analyses(
     db: Session = Depends(get_db),
 ):
     """Return workloads matching model+seqlen that have Sentinel data, for devzone import modal."""
-    from app.models import Workload
     workloads = (
         db.query(Workload)
         .filter(
@@ -313,9 +312,6 @@ def add_sentinel_curve(
     db: Session = Depends(get_db),
     user=Depends(require_auth),
 ):
-    from app.models import Workload
-    import json as _json
-
     scene = db.query(DevzoneScene).filter(DevzoneScene.id == scene_id).first()
     if not scene:
         raise HTTPException(status_code=404, detail="Scene not found")
@@ -332,7 +328,7 @@ def add_sentinel_curve(
     color = CURVE_COLORS[existing_count % len(CURVE_COLORS)]
 
     # Single-point approximation: y = amd_tps_sentinel_value, x = 0 (approximate)
-    points = _json.dumps([{
+    points = json.dumps([{
         "x": 0,
         "y": workload.amd_tps_sentinel_value,
         "concurrency": None,

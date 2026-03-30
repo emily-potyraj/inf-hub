@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from starlette.requests import Request
 
-from app.auth import require_auth
+from app.auth import require_auth, get_current_user
 from app.database import get_db
 from app.models import AuditLog, Workload
 
@@ -166,7 +166,7 @@ def sync_sentinel(db: Session) -> dict:
                         new_value=str(best_amd_value),
                     ))
                 else:
-                    if workload.amd_tps is not None:
+                    if workload.amd_tps is not None and workload.amd_tps != 0:
                         diff = abs(best_amd_value - workload.amd_tps) / workload.amd_tps
                         if diff > 0.05:
                             manual_divergences.append({
@@ -212,9 +212,8 @@ def get_status():
 
 
 @router.get("/status-fragment", response_class=HTMLResponse)
-def status_fragment(request: Request):
+def status_fragment(request: Request, user=Depends(get_current_user)):
     status = get_status()
-    user = getattr(request.state, "user", None)
     return templates.TemplateResponse(
         "partials/sentinel_status.html",
         {"request": request, "status": status, "user": user},
