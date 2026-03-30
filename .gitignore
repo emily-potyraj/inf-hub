@@ -10,3 +10,4 @@ data/configs/
 dist/
 infhub.db
 backups/
+infhub.db.bak
