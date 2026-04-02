@@ -65,6 +65,26 @@ async def _parse_upload(file: UploadFile) -> list[dict]:
     return parse_ibdb_export(content.decode("utf-8", errors="replace"))
 
 
+# --- Stateless IBDB parser (no DB) ---
+
+@router.post("/parse")
+async def parse_ibdb(file: UploadFile = File(...)):
+    """Parse an IBDB .xlsx export and return all curves with full point data. No DB writes."""
+    parsed = await _parse_upload(file)
+    return [
+        {
+            "label": s["label"],
+            "hardware": s["hardware"],
+            "framework": s["framework"],
+            "precision": s["precision"],
+            "isl": s.get("isl"),
+            "osl": s.get("osl"),
+            "points": s["points"],
+        }
+        for s in parsed
+    ]
+
+
 # --- Scenes ---
 
 @router.post("/scenes")

@@ -327,33 +327,11 @@ def devzone_compare_page(
 @app.get("/devzone")
 def devzone_page(
     request: Request,
-    scene: str = None,
-    db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    scenes = db.query(DevzoneScene).order_by(DevzoneScene.created_at.desc()).all()
-    selected = None
-    curves = []
-    traces_json = "[]"
-
-    if scene:
-        selected = db.get(DevzoneScene, scene)
-        if selected:
-            curves = (
-                db.query(DevzoneCurve)
-                .filter(DevzoneCurve.scene_id == scene)
-                .all()
-            )
-            traces_json = _json.dumps(_build_plotly_traces(curves))
-
     return templates.TemplateResponse("devzone.html", {
         "request": request,
         "user": user,
-        "editable": True,
-        "scenes": scenes,
-        "selected": selected,
-        "curves": curves,
-        "traces_json": traces_json,
     })
 
 
