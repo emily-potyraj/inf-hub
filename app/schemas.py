@@ -139,3 +139,19 @@ class DevzoneSeriesPreview(BaseModel):
     osl:         Optional[int] = None
     point_count: int
     duplicate:   bool
+
+
+class RequestCreate(BaseModel):
+    model:        str
+    hardware:     str
+    framework:    str
+    precision:    str
+    scenario:     str
+    seqlens:      Optional[str] = None
+    notes:        Optional[str] = None
+    submitted_by: Optional[str] = None
+
+
+class RequestUpdate(BaseModel):
+    status: Optional[str] = None
+    pic:    Optional[str] = None

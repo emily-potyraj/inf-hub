@@ -128,3 +128,21 @@ class DevzoneCurve(Base):
     uploaded_at = Column(DateTime, default=_now)
     inf_hub_workload_id = Column(Text)   # nullable FK to workloads.id, app-enforced
     points      = Column(Text, nullable=False)   # JSON string
+
+
+class Request(Base):
+    __tablename__ = "requests"
+
+    id           = Column(Integer, primary_key=True)
+    model        = Column(Text, nullable=False)
+    hardware     = Column(Text, nullable=False)
+    framework    = Column(Text, nullable=False)
+    precision    = Column(Text, nullable=False)
+    scenario     = Column(Text, nullable=False)
+    seqlens      = Column(Text)
+    notes        = Column(Text)
+    status       = Column(Text, nullable=False, default="new")
+    pic          = Column(Text)
+    submitted_by = Column(Text)
+    created_at   = Column(DateTime, default=_now)
+    updated_at   = Column(DateTime, default=_now, onupdate=_now)
