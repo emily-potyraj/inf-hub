@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+{% block title %}Requests · inf-hub{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-5">
+  <h2 class="font-metric font-bold" style="font-size:1.3rem;color:var(--text);letter-spacing:0.03em">Requests</h2>
+  {% if user %}
+  <button onclick="openNewRequestModal()"
+          style="background:var(--green);color:#000;font-weight:700;border:none;border-radius:5px;padding:6px 16px;font-size:0.85rem;cursor:pointer;letter-spacing:0.02em">
+    + New Request
+  </button>
+  {% endif %}
+</div>
+
+{# ── Section: New ── #}
+<div class="mb-4" style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+  <div onclick="toggleSection('sec-new')"
+       style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg-card);cursor:pointer;user-select:none">
+    <span class="font-metric font-bold" style="font-size:0.95rem;color:var(--text)">
+      New <span class="badge badge-green" style="margin-left:6px">{{ new | length }}</span>
+    </span>
+    <span id="sec-new-icon" style="color:var(--text-muted);font-size:0.85rem">▾</span>
+  </div>
+  <div id="sec-new">
+    {% if new %}
+    <div style="overflow-x:auto">
+      <table class="wl-table">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Hardware</th>
+            <th>Framework</th>
+            <th>Precision</th>
+            <th>Scenario</th>
+            <th>Seqlens</th>
+            <th>PIC</th>
+            <th>Submitted By</th>
+            <th>Date</th>
+            <th>Notes</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for req in new %}
+          <tr class="wl-row">
+            <td style="font-weight:600">{{ req.model }}</td>
+            <td>{{ req.hardware }}</td>
+            <td>{{ req.framework }}</td>
+            <td>{{ req.precision }}</td>
+            <td>{{ req.scenario }}</td>
+            <td style="color:var(--text-muted)">{{ req.seqlens or '—' }}</td>
+            <td>
+              {% if user %}
+              <input type="text" value="{{ req.pic or '' }}"
+                     class="edit-input" style="min-width:90px"
+                     onblur="patchRequest({{ req.id }}, 'pic', this.value)"
+                     placeholder="—">
+              {% else %}
+              {{ req.pic or '—' }}
+              {% endif %}
+            </td>
+            <td style="color:var(--text-muted);white-space:nowrap">{{ req.submitted_by or '—' }}</td>
+            <td style="color:var(--text-muted);white-space:nowrap;font-size:0.78rem">{{ req.created_at.strftime('%Y-%m-%d') if req.created_at else '—' }}</td>
+            <td style="color:var(--text-muted);max-width:200px;white-space:normal;word-break:break-word">{{ req.notes or '—' }}</td>
+            <td>
+              {% if user %}
+              <select onchange="patchRequest({{ req.id }}, 'status', this.value)"
+                      style="background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--text);font-size:0.78rem;cursor:pointer">
+                <option value="new" {% if req.status == 'new' %}selected{% endif %}>New</option>
+                <option value="in_progress" {% if req.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                <option value="completed" {% if req.status == 'completed' %}selected{% endif %}>Completed</option>
+              </select>
+              {% else %}
+              <span class="badge badge-green">New</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding:20px 16px;color:var(--text-muted);font-size:0.85rem">No new requests.</div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Section: In Progress ── #}
+<div class="mb-4" style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+  <div onclick="toggleSection('sec-in-progress')"
+       style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg-card);cursor:pointer;user-select:none">
+    <span class="font-metric font-bold" style="font-size:0.95rem;color:var(--text)">
+      In Progress <span class="badge badge-blue" style="margin-left:6px">{{ in_progress | length }}</span>
+    </span>
+    <span id="sec-in-progress-icon" style="color:var(--text-muted);font-size:0.85rem">▾</span>
+  </div>
+  <div id="sec-in-progress">
+    {% if in_progress %}
+    <div style="overflow-x:auto">
+      <table class="wl-table">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Hardware</th>
+            <th>Framework</th>
+            <th>Precision</th>
+            <th>Scenario</th>
+            <th>Seqlens</th>
+            <th>PIC</th>
+            <th>Submitted By</th>
+            <th>Date</th>
+            <th>Notes</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for req in in_progress %}
+          <tr class="wl-row">
+            <td style="font-weight:600">{{ req.model }}</td>
+            <td>{{ req.hardware }}</td>
+            <td>{{ req.framework }}</td>
+            <td>{{ req.precision }}</td>
+            <td>{{ req.scenario }}</td>
+            <td style="color:var(--text-muted)">{{ req.seqlens or '—' }}</td>
+            <td>
+              {% if user %}
+              <input type="text" value="{{ req.pic or '' }}"
+                     class="edit-input" style="min-width:90px"
+                     onblur="patchRequest({{ req.id }}, 'pic', this.value)"
+                     placeholder="—">
+              {% else %}
+              {{ req.pic or '—' }}
+              {% endif %}
+            </td>
+            <td style="color:var(--text-muted);white-space:nowrap">{{ req.submitted_by or '—' }}</td>
+            <td style="color:var(--text-muted);white-space:nowrap;font-size:0.78rem">{{ req.created_at.strftime('%Y-%m-%d') if req.created_at else '—' }}</td>
+            <td style="color:var(--text-muted);max-width:200px;white-space:normal;word-break:break-word">{{ req.notes or '—' }}</td>
+            <td>
+              {% if user %}
+              <select onchange="patchRequest({{ req.id }}, 'status', this.value)"
+                      style="background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--text);font-size:0.78rem;cursor:pointer">
+                <option value="new" {% if req.status == 'new' %}selected{% endif %}>New</option>
+                <option value="in_progress" {% if req.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                <option value="completed" {% if req.status == 'completed' %}selected{% endif %}>Completed</option>
+              </select>
+              {% else %}
+              <span class="badge badge-blue">In Progress</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding:20px 16px;color:var(--text-muted);font-size:0.85rem">No requests in progress.</div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Section: Completed ── #}
+<div class="mb-4" style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+  <div onclick="toggleSection('sec-completed')"
+       style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg-card);cursor:pointer;user-select:none">
+    <span class="font-metric font-bold" style="font-size:0.95rem;color:var(--text)">
+      Completed <span class="badge badge-muted" style="margin-left:6px">{{ completed | length }}</span>
+    </span>
+    <span id="sec-completed-icon" style="color:var(--text-muted);font-size:0.85rem">▸</span>
+  </div>
+  <div id="sec-completed" style="display:none">
+    {% if completed %}
+    <div style="overflow-x:auto">
+      <table class="wl-table">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Hardware</th>
+            <th>Framework</th>
+            <th>Precision</th>
+            <th>Scenario</th>
+            <th>Seqlens</th>
+            <th>PIC</th>
+            <th>Submitted By</th>
+            <th>Date</th>
+            <th>Notes</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for req in completed %}
+          <tr class="wl-row">
+            <td style="font-weight:600">{{ req.model }}</td>
+            <td>{{ req.hardware }}</td>
+            <td>{{ req.framework }}</td>
+            <td>{{ req.precision }}</td>
+            <td>{{ req.scenario }}</td>
+            <td style="color:var(--text-muted)">{{ req.seqlens or '—' }}</td>
+            <td>
+              {% if user %}
+              <input type="text" value="{{ req.pic or '' }}"
+                     class="edit-input" style="min-width:90px"
+                     onblur="patchRequest({{ req.id }}, 'pic', this.value)"
+                     placeholder="—">
+              {% else %}
+              {{ req.pic or '—' }}
+              {% endif %}
+            </td>
+            <td style="color:var(--text-muted);white-space:nowrap">{{ req.submitted_by or '—' }}</td>
+            <td style="color:var(--text-muted);white-space:nowrap;font-size:0.78rem">{{ req.created_at.strftime('%Y-%m-%d') if req.created_at else '—' }}</td>
+            <td style="color:var(--text-muted);max-width:200px;white-space:normal;word-break:break-word">{{ req.notes or '—' }}</td>
+            <td>
+              {% if user %}
+              <select onchange="patchRequest({{ req.id }}, 'status', this.value)"
+                      style="background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--text);font-size:0.78rem;cursor:pointer">
+                <option value="new" {% if req.status == 'new' %}selected{% endif %}>New</option>
+                <option value="in_progress" {% if req.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                <option value="completed" {% if req.status == 'completed' %}selected{% endif %}>Completed</option>
+              </select>
+              {% else %}
+              <span class="badge badge-muted">Completed</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding:20px 16px;color:var(--text-muted);font-size:0.85rem">No completed requests.</div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── New Request Modal ── #}
+{% if user %}
+<div id="new-request-modal"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:200;align-items:center;justify-content:center">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:2rem;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-metric font-bold" style="color:var(--text);font-size:1.05rem">New Request</h3>
+      <button onclick="closeNewRequestModal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem">✕</button>
+    </div>
+    <div id="req-success" style="display:none;background:rgba(118,185,0,0.1);border:1px solid var(--green);border-radius:6px;padding:0.75rem;margin-bottom:1rem;color:var(--green);font-size:0.85rem">
+      ✓ Request submitted!
+    </div>
+    <form id="new-request-form">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+        <div>
+          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Model *</label>
+          <input id="nr-model" list="nr-opt-model" required placeholder="e.g. DeepSeek-R1"
+                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
+          <datalist id="nr-opt-model">{% for m in filter_options.model %}<option value="{{ m }}">{% endfor %}</datalist>
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Hardware *</label>
+          <input id="nr-hardware" list="nr-opt-hw" required placeholder="e.g. B200"
+                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
+          <datalist id="nr-opt-hw">{% for h in filter_options.hardware %}<option value="{{ h }}">{% endfor %}</datalist>
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Framework *</label>
+          <input id="nr-framework" list="nr-opt-fw" required placeholder="e.g. TRT-LLM"
+                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
+          <datalist id="nr-opt-fw">{% for f in filter_options.framework %}<option value="{{ f }}">{% endfor %}</datalist>
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Precision *</label>
+          <input id="nr-precision" list="nr-opt-prec" required placeholder="e.g. FP8"
+                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
+          <datalist id="nr-opt-prec">{% for p in filter_options.precision %}<option value="{{ p }}">{% endfor %}</datalist>
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Scenario *</label>
+          <input id="nr-scenario" list="nr-opt-scen" required placeholder="e.g. agg"
+                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
+          <datalist id="nr-opt-scen">{% for s in filter_options.scenario %}<option value="{{ s }}">{% endfor %}</datalist>
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Seqlens</label>
+          <input id="nr-seqlens" list="nr-opt-seqlen" placeholder="e.g. 1k/1k"
+                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
+          <datalist id="nr-opt-seqlen">{% for s in filter_options.seqlens %}<option value="{{ s }}">{% endfor %}</datalist>
+        </div>
+      </div>
+      <div style="margin-top:0.75rem">
+        <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Reason / notes</label>
+        <textarea id="nr-notes" rows="2" placeholder="Why is this needed? Context for the team…"
+                  style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem;resize:vertical"></textarea>
+      </div>
+      <div id="req-error" style="display:none;color:var(--red);font-size:0.82rem;margin-top:0.5rem"></div>
+      <div class="flex gap-2 justify-end" style="margin-top:1rem">
+        <button type="button" onclick="closeNewRequestModal()"
+                style="font-size:0.85rem;padding:6px 14px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer">
+          Cancel
+        </button>
+        <button type="submit"
+                style="font-size:0.85rem;padding:6px 18px;border-radius:5px;border:none;background:var(--green);color:#000;font-weight:700;cursor:pointer">
+          Submit Request
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<script>
+// ── Section collapse ──
+function toggleSection(id) {
+  var el = document.getElementById(id);
+  var icon = document.getElementById(id + '-icon');
+  if (!el) return;
+  var open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (icon) icon.textContent = open ? '▸' : '▾';
+}
+
+// ── Inline editing ──
+function patchRequest(id, field, value) {
+  var payload = {};
+  payload[field] = value;
+  fetch('/requests/' + id, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  })
+  .then(function(r) {
+    if (!r.ok) return r.json().then(function(d) { throw new Error(d.detail || r.status); });
+    return r.json();
+  })
+  .then(function() {
+    window.location.reload();
+  })
+  .catch(function(err) {
+    alert('Update failed: ' + err.message);
+  });
+}
+
+{% if user %}
+// ── New Request modal ──
+function openNewRequestModal() {
+  document.getElementById('nr-model').value = '';
+  document.getElementById('nr-hardware').value = '';
+  document.getElementById('nr-framework').value = '';
+  document.getElementById('nr-precision').value = '';
+  document.getElementById('nr-scenario').value = '';
+  document.getElementById('nr-seqlens').value = '';
+  document.getElementById('nr-notes').value = '';
+  document.getElementById('req-success').style.display = 'none';
+  document.getElementById('req-error').style.display = 'none';
+  document.getElementById('new-request-modal').style.display = 'flex';
+  document.getElementById('nr-model').focus();
+}
+
+function closeNewRequestModal() {
+  document.getElementById('new-request-modal').style.display = 'none';
+}
+
+document.getElementById('new-request-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var errEl = document.getElementById('req-error');
+  errEl.style.display = 'none';
+  var payload = {
+    model: document.getElementById('nr-model').value.trim(),
+    hardware: document.getElementById('nr-hardware').value.trim(),
+    framework: document.getElementById('nr-framework').value.trim(),
+    precision: document.getElementById('nr-precision').value.trim(),
+    scenario: document.getElementById('nr-scenario').value.trim(),
+    seqlens: document.getElementById('nr-seqlens').value.trim() || null,
+    notes: document.getElementById('nr-notes').value.trim() || null,
+  };
+  fetch('/requests', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  })
+  .then(function(r) {
+    if (!r.ok) return r.json().then(function(d) { throw new Error(d.detail || r.status); });
+    return r.json();
+  })
+  .then(function() {
+    document.getElementById('req-success').style.display = 'block';
+    setTimeout(function() { closeNewRequestModal(); window.location.reload(); }, 1200);
+  })
+  .catch(function(err) {
+    errEl.textContent = 'Error: ' + err.message;
+    errEl.style.display = 'block';
+  });
+});
+
+document.getElementById('new-request-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeNewRequestModal();
+});
+{% endif %}
+</script>
+
+{% endblock %}

@@ -18,6 +18,7 @@
         <span class="font-metric text-lg font-bold" style="color:var(--green); letter-spacing:0.05em">inf-hub</span>
         <nav class="flex gap-1">
           <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">Coverage</a>
+          <a href="/requests" class="nav-link {% if request.url.path == '/requests' %}active{% endif %}">Requests</a>
           {# hidden: IBDB→JSON, Team, Overview nav links — routes still active #}
           {# <a href="/devzone" class="nav-link {% if request.url.path.startswith('/devzone') %}active{% endif %}">IBDB → JSON</a> #}
           {# <a href="/team" class="nav-link {% if request.url.path == '/team' %}active{% endif %}">Team</a> #}
@@ -28,9 +29,8 @@
         {% if user %}
           <span style="color:var(--text-muted); font-size:0.82rem">{{ user.name }}</span>
           <a href="/auth/logout" class="nav-link">Sign out</a>
-        {% else %}
-          <a href="/auth/login" class="nav-link">Sign in to edit</a>
         {% endif %}
+        {# hidden: sign-in link — auth routes still active #}
       </div>
     </div>
   </header>
