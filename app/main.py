@@ -138,142 +138,85 @@ def _group_id(key: tuple) -> str:
 @app.get("/")
 def index(
     request: Request,
-    hardware: str = None,
-    framework: str = None,
-    status: str = None,
-    story_label: str = None,
-    amd_ahead: bool = None,
-    unassigned_pic: bool = None,
     model: str = None,
-    precision: str = None,
-    scenario: str = None,
-    work_type: str = None,
-    pic: str = None,
+    hardware: str = None,
+    status: str = None,
     q: str = None,
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    # Fetch all workloads (unfiltered for filter_options)
     all_workloads = db.query(Workload).all()
     all_rows = [_to_row(w) for w in all_workloads]
 
-    # Build filter options from full unfiltered dataset
     filter_options = {
         "model": sorted(set(r.model for r in all_rows if r.model)),
         "hardware": sorted(set(r.hardware for r in all_rows if r.hardware)),
         "framework": sorted(set(r.framework for r in all_rows if r.framework)),
         "precision": sorted(set(r.precision for r in all_rows if r.precision)),
         "scenario": sorted(set(r.scenario for r in all_rows if r.scenario)),
+        "seqlens": sorted(set(r.seqlens for r in all_rows if r.seqlens)),
     }
-
-    # Get pic options from TeamFunction
-    team_members = db.query(TeamFunction).all()
-    pic_set = set()
-    for tf in team_members:
-        if tf.owner:
-            pic_set.add(tf.owner)
-        if tf.backup:
-            pic_set.add(tf.backup)
-    pic_options = sorted(pic_set)
 
     # Apply filters
     rows = all_rows
-    if hardware:
-        rows = [r for r in rows if r.hardware == hardware]
-    if framework:
-        rows = [r for r in rows if r.framework == framework]
-    if status:
-        rows = [r for r in rows if r.status == status]
-    if story_label:
-        rows = [r for r in rows if r.story_label == story_label]
     if model:
         rows = [r for r in rows if r.model == model]
-    if precision:
-        rows = [r for r in rows if r.precision == precision]
-    if scenario:
-        rows = [r for r in rows if r.scenario == scenario]
-    if work_type:
-        rows = [r for r in rows if r.work_type == work_type]
-    if pic:
-        rows = [r for r in rows if r.pic == pic]
-    if unassigned_pic:
-        rows = [r for r in rows if r.pic is None]
-    if amd_ahead:
-        rows = [r for r in rows if r.gap_pct is not None and r.gap_pct < 0]
+    if hardware:
+        rows = [r for r in rows if r.hardware == hardware]
+    if status:
+        rows = [r for r in rows if r.status == status]
     if q:
         q_lower = q.lower()
-        rows = [
-            r for r in rows
-            if any(
-                q_lower in str(v or "").lower()
-                for v in [r.model, r.hardware, r.framework, r.precision,
-                          r.scenario, r.seqlens, r.pic, r.notes]
-            )
-        ]
+        rows = [r for r in rows if any(
+            q_lower in str(v or "").lower()
+            for v in [r.model, r.hardware, r.framework, r.precision, r.scenario, r.seqlens, r.pic, r.notes]
+        )]
 
-    # Build groups: OrderedDict keyed by (model, hardware, framework, precision, scenario)
-    # Sort rows first: by priority asc (None last), then identity fields alphabetically
-    def sort_key(r):
-        pri = r.priority if r.priority is not None else 9999
-        return (pri, r.model or "", r.hardware or "", r.framework or "",
-                r.precision or "", r.scenario or "")
+    # Sort: priority asc (None last), then alphabetically
+    rows_sorted = sorted(rows, key=lambda r: (
+        r.priority if r.priority is not None else 9999,
+        r.model or "", r.hardware or "", r.framework or "", r.precision or "", r.scenario or ""
+    ))
 
-    rows_sorted = sorted(rows, key=sort_key)
-
-    groups: OrderedDict = OrderedDict()
+    # Build tree: model → stack_key → [rows]
+    # stack_key = (hardware, framework, precision)
+    tree: OrderedDict = OrderedDict()
     for r in rows_sorted:
-        key = (r.model, r.hardware, r.framework, r.precision, r.scenario)
-        if key not in groups:
-            groups[key] = []
-        groups[key].append(r)
+        m = r.model or "Unknown"
+        stack = (r.hardware or "?", r.framework or "?", r.precision or "?")
+        if m not in tree:
+            tree[m] = OrderedDict()
+        if stack not in tree[m]:
+            tree[m][stack] = []
+        tree[m][stack].append(r)
 
-    # Generate group_ids
-    group_ids = {key: _group_id(key) for key in groups}
+    # Serialize all rows as JSON for client-side matrix + export
+    rows_json = _json.dumps([{
+        "id": r.id, "model": r.model, "hardware": r.hardware,
+        "framework": r.framework, "precision": r.precision,
+        "scenario": r.scenario, "seqlens": r.seqlens,
+        "status": r.status, "pic": r.pic, "priority": r.priority,
+        "nv_tps": r.nv_tps, "amd_tps": r.amd_tps, "gap_pct": r.gap_pct,
+        "notes": r.notes,
+    } for r in rows_sorted])
 
-    # Compute stats from filtered rows
     stats = {
         "total": len(rows),
-        "submitted": sum(1 for r in rows if r.infmax_submitted == "yes"),
-        "in_review": sum(1 for r in rows if r.status == "internal_review"),
-        "config_search": sum(1 for r in rows if r.status == "config_search"),
+        "published": sum(1 for r in rows if r.status == "published"),
+        "in_flight": sum(1 for r in rows if r.status in ("internal_review", "accuracy_gate", "config_search")),
         "not_started": sum(1 for r in rows if r.status == "not_started"),
+        "amd_ahead": sum(1 for r in rows if r.gap_pct is not None and r.gap_pct < 0),
     }
-
-    stale_threshold = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-
-    config_subq = (
-        db.query(ConfigVersion.workload_id, func.max(ConfigVersion.version_num).label("max_v"))
-        .group_by(ConfigVersion.workload_id)
-        .all()
-    )
-    latest_configs = {row.workload_id: row.max_v for row in config_subq}
 
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "workloads": rows,
-        "groups": groups,
-        "group_ids": group_ids,
+        "tree": tree,
         "filter_options": filter_options,
-        "pic_options": pic_options,
-        "user": user,
-        "filters": {
-            "hardware": hardware,
-            "framework": framework,
-            "status": status,
-            "story_label": story_label,
-            "amd_ahead": amd_ahead,
-            "unassigned_pic": unassigned_pic,
-            "model": model,
-            "precision": precision,
-            "scenario": scenario,
-            "work_type": work_type,
-            "pic": pic,
-            "q": q,
-        },
-        "stale_threshold": stale_threshold,
-        "latest_configs": latest_configs,
+        "filters": {"model": model, "hardware": hardware, "status": status, "q": q},
         "stats": stats,
-        "editable": True,  # TODO: set to bool(user) once Entra SSO is configured
+        "rows_json": rows_json,
+        "user": user,
+        "editable": True,
     })
 
 

@@ -1,404 +1,407 @@
 {% extends "base.html" %}
-{% block title %}inf-hub — Workloads{% endblock %}
+{% block title %}Coverage · inf-hub{% endblock %}
 {% block content %}
 
-{# ── Filter bar ────────────────────────────────────────────────── #}
-<form method="get" action="/" id="filter-form" class="filter-bar">
-  <div class="filter-group">
-    <span class="filter-label">Search</span>
-    <input name="q" id="filter-q" class="filter-search"
-      placeholder="model, hw, fw, pic, notes…"
-      value="{{ filters.q or '' }}">
+{# ── Stat bar ── #}
+<div class="flex items-center justify-between mb-5" style="flex-wrap:wrap;gap:0.75rem">
+  <div class="flex gap-4">
+    <div style="text-align:center">
+      <div class="font-metric font-bold text-2xl" style="color:var(--text)">{{ stats.total }}</div>
+      <div style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">Total</div>
+    </div>
+    <div style="text-align:center">
+      <div class="font-metric font-bold text-2xl" style="color:var(--green)">{{ stats.published }}</div>
+      <div style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">Published</div>
+    </div>
+    <div style="text-align:center">
+      <div class="font-metric font-bold text-2xl" style="color:var(--blue)">{{ stats.in_flight }}</div>
+      <div style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">In flight</div>
+    </div>
+    <div style="text-align:center">
+      <div class="font-metric font-bold text-2xl" style="color:var(--text-label)">{{ stats.not_started }}</div>
+      <div style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">Not started</div>
+    </div>
+    {% if stats.amd_ahead > 0 %}
+    <div style="text-align:center">
+      <div class="font-metric font-bold text-2xl" style="color:var(--red)">{{ stats.amd_ahead }}</div>
+      <div style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">AMD ahead</div>
+    </div>
+    {% endif %}
   </div>
-  {% for key, label in [
-    ("model","Model"),("hardware","HW"),("framework","FW"),
-    ("precision","Precision"),("scenario","Scenario"),
-    ("status","Status"),("work_type","Type"),("pic","PIC")
-  ] %}
-  <div class="filter-group">
-    <span class="filter-label">{{ label }}</span>
-    <select name="{{ key }}" id="filter-{{ key }}"
-      class="filter-select {% if filters[key] %}active{% endif %}"
-      onchange="document.getElementById('filter-form').submit()">
-      <option value="">All</option>
-      {% if key == "status" %}
-        {% for v in ["not_started","config_search","accuracy_gate","internal_review","infmax_submitted","published"] %}
-          <option value="{{ v }}" {% if filters[key] == v %}selected{% endif %}>{{ v }}</option>
-        {% endfor %}
-      {% elif key == "work_type" %}
-        {% for v in ["tune","breadth_test"] %}
-          <option value="{{ v }}" {% if filters[key] == v %}selected{% endif %}>{{ v }}</option>
-        {% endfor %}
-      {% elif key == "pic" %}
-        {% for v in pic_options %}
-          <option value="{{ v }}" {% if filters[key] == v %}selected{% endif %}>{{ v }}</option>
-        {% endfor %}
-      {% else %}
-        {% for v in filter_options[key] %}
-          <option value="{{ v }}" {% if filters[key] == v %}selected{% endif %}>{{ v }}</option>
-        {% endfor %}
-      {% endif %}
-    </select>
+  <div class="flex gap-2 items-center" style="flex-wrap:wrap">
+    <button onclick="exportCSV()" class="badge badge-muted" style="cursor:pointer;padding:4px 10px;font-size:0.78rem">Export CSV</button>
+    <button onclick="exportJSON()" class="badge badge-muted" style="cursor:pointer;padding:4px 10px;font-size:0.78rem">Export JSON</button>
+    <button onclick="toggleView()" id="view-toggle-btn" class="badge badge-muted" style="cursor:pointer;padding:4px 10px;font-size:0.78rem">Matrix view</button>
+    <button onclick="openRequestModal({})" style="background:var(--green);color:#000;font-weight:700;border:none;border-radius:5px;padding:5px 14px;font-size:0.82rem;cursor:pointer;letter-spacing:0.02em">+ Request</button>
   </div>
-  {% endfor %}
-  <div class="filter-group" style="justify-content:flex-end">
-    <span class="filter-label">&nbsp;</span>
-    <a href="/" class="badge badge-muted" style="padding:5px 12px;text-decoration:none;font-size:0.78rem">&#x2715; Clear</a>
-  </div>
+</div>
+
+{# ── Filters ── #}
+<form method="get" action="/" class="flex gap-2 mb-5" style="flex-wrap:wrap;align-items:center">
+  <input name="q" value="{{ filters.q or '' }}" placeholder="Search…"
+         style="background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:5px 10px;color:var(--text);font-size:0.82rem;width:180px">
+  <select name="model" onchange="this.form.submit()"
+          style="background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:5px 10px;color:var(--text);font-size:0.82rem">
+    <option value="">All models</option>
+    {% for m in filter_options.model %}
+    <option value="{{ m }}" {% if filters.model == m %}selected{% endif %}>{{ m }}</option>
+    {% endfor %}
+  </select>
+  <select name="hardware" onchange="this.form.submit()"
+          style="background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:5px 10px;color:var(--text);font-size:0.82rem">
+    <option value="">All hardware</option>
+    {% for h in filter_options.hardware %}
+    <option value="{{ h }}" {% if filters.hardware == h %}selected{% endif %}>{{ h }}</option>
+    {% endfor %}
+  </select>
+  <select name="status" onchange="this.form.submit()"
+          style="background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:5px 10px;color:var(--text);font-size:0.82rem">
+    <option value="">All statuses</option>
+    {% for s in ["published","internal_review","accuracy_gate","config_search","not_started"] %}
+    <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  {% if filters.q or filters.model or filters.hardware or filters.status %}
+  <a href="/" style="font-size:0.78rem;color:var(--text-muted);text-decoration:none">✕ clear</a>
+  {% endif %}
 </form>
 
-{# ── Stats bar ─────────────────────────────────────────────────── #}
-<div class="stats-bar">
-  <span>{{ stats.total }} workloads</span>
-  <span class="stat-submitted">{{ stats.submitted }} submitted</span>
-  <span class="stat-review">{{ stats.in_review }} in review</span>
-  <span class="stat-search">{{ stats.config_search }} config search</span>
-  <span style="color:var(--text-label)">{{ stats.not_started }} not started</span>
-  <span style="margin-left:auto;display:flex;align-items:center;gap:0.5rem">
-    <button onclick="collapseAll()" class="badge badge-muted" style="cursor:pointer;padding:3px 10px;font-size:0.74rem;border:none">&#9654; Collapse all</button>
-    <button onclick="expandAll()" class="badge badge-muted" style="cursor:pointer;padding:3px 10px;font-size:0.74rem;border:none">&#9660; Expand all</button>
-    {% if not user %}
-      <span style="color:var(--text-label);font-size:0.76rem">
-        <a href="/auth/login" style="color:var(--blue)">Sign in</a>
+{# ── Tree view ── #}
+<div id="tree-view">
+{% if tree %}
+  {% for model_name, stacks in tree.items() %}
+  {% set model_total = namespace(n=0) %}
+  {% set model_published = namespace(n=0) %}
+  {% set model_not_started = namespace(n=0) %}
+  {% for wl_rows in stacks.values() %}
+    {% set model_total.n = model_total.n + wl_rows | length %}
+    {% for r in wl_rows %}
+      {% if r.status == 'published' %}{% set model_published.n = model_published.n + 1 %}{% endif %}
+      {% if r.status == 'not_started' %}{% set model_not_started.n = model_not_started.n + 1 %}{% endif %}
+    {% endfor %}
+  {% endfor %}
+  <div class="model-block" style="margin-bottom:0.5rem;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <button onclick="toggleModel(this)"
+            style="width:100%;display:flex;align-items:center;gap:0.75rem;padding:0.65rem 1rem;background:var(--bg-card);border:none;cursor:pointer;text-align:left">
+      <span style="color:var(--text-muted);font-size:0.78rem;user-select:none;min-width:12px">▼</span>
+      <span class="font-metric font-bold" style="color:var(--text);font-size:0.95rem;flex:1;text-align:left">{{ model_name }}</span>
+      <span style="font-size:0.75rem;color:var(--text-label)">
+        {{ stacks | length }} stack{{ 's' if stacks | length != 1 else '' }} ·
+        {{ model_total.n }} workload{{ 's' if model_total.n != 1 else '' }}
       </span>
-    {% endif %}
-  </span>
-</div>
-
-{# ── Workload matrix ───────────────────────────────────────────── #}
-<div style="overflow-x:auto">
-  <table class="wl-table">
-    <thead>
-      <tr>
-        <th style="width:22px"></th>
-        <th>Seqlens</th>
-        <th>Status</th>
-        <th>PIC</th>
-        <th>Pri</th>
-        <th>Type</th>
-        <th>NV TPS</th>
-        <th>AMD TPS</th>
-        <th>Gap</th>
-        <th>InfMax</th>
-        <th>IBDB</th>
-        <th>Config</th>
-        <th>Sentinel</th>
-      </tr>
-    </thead>
-    <tbody id="workload-tbody">
-      {% if not groups %}
-        <tr><td colspan="13" style="text-align:center;color:var(--text-muted);padding:2rem">
-          No workloads match the current filters.
-        </td></tr>
+      {% if model_not_started.n > 0 %}
+      <span class="badge badge-muted" style="font-size:0.68rem">{{ model_not_started.n }} not started</span>
       {% endif %}
+      {% if model_published.n > 0 %}
+      <span class="badge badge-green" style="font-size:0.68rem">{{ model_published.n }} published</span>
+      {% endif %}
+      <button onclick="event.stopPropagation(); openRequestModal({model: '{{ model_name | e }}'})"
+              style="font-size:0.72rem;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;margin-left:0.5rem">
+        + Request
+      </button>
+    </button>
 
-      {% for group_key, rows in groups.items() %}
-        {% set gid = group_ids[group_key] %}
-        {% set model, hw, fw, prec, scenario = group_key %}
-        {# Compute group priority: min priority in group (ignoring None) #}
-        {% set gpriority = namespace(val=None) %}
-        {% for r in rows %}
-          {% if r.priority %}
-            {% if gpriority.val is none or r.priority < gpriority.val %}
-              {% set gpriority.val = r.priority %}
-            {% endif %}
+    <div class="model-body" style="border-top:1px solid var(--border)">
+      {% for (hw, fw, prec), wl_rows in stacks.items() %}
+      <div style="{% if not loop.last %}border-bottom:1px solid var(--border){% endif %}">
+        {# Stack header #}
+        <div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 1rem 0.4rem 2rem;background:var(--bg-row)">
+          <span class="font-metric" style="font-size:0.8rem;color:var(--text);font-weight:600">{{ hw }}</span>
+          <span style="color:var(--border)">·</span>
+          <span style="font-size:0.8rem;color:var(--text-muted)">{{ fw }}</span>
+          <span style="color:var(--border)">·</span>
+          <span style="font-size:0.8rem;color:var(--text-muted)">{{ prec }}</span>
+          <span style="flex:1"></span>
+          <span style="font-size:0.72rem;color:var(--text-label)">{{ wl_rows | length }} workload{{ 's' if wl_rows | length != 1 else '' }}</span>
+          <button onclick="openRequestModal({model: '{{ model_name | e }}', hardware: '{{ hw | e }}', framework: '{{ fw | e }}', precision: '{{ prec | e }}'})"
+                  style="font-size:0.68rem;padding:1px 6px;border-radius:3px;border:1px solid var(--border);background:transparent;color:var(--text-label);cursor:pointer">
+            + Request variant
+          </button>
+        </div>
+        {# Workload rows #}
+        {% for r in wl_rows %}
+        <a href="/workloads/{{ r.id }}"
+           style="display:flex;align-items:center;gap:0.75rem;padding:0.35rem 1rem 0.35rem 3rem;text-decoration:none;{% if not loop.last %}border-bottom:1px solid var(--border){% endif %}"
+           onmouseover="this.style.background='var(--bg-row)'" onmouseout="this.style.background='transparent'">
+          {% if r.status == 'published' %}
+            <span style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0"></span>
+          {% elif r.status in ('internal_review', 'accuracy_gate') %}
+            <span style="width:8px;height:8px;border-radius:50%;background:var(--blue);flex-shrink:0"></span>
+          {% elif r.status == 'config_search' %}
+            <span style="width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0"></span>
+          {% else %}
+            <span style="width:8px;height:8px;border-radius:50%;background:var(--border);flex-shrink:0"></span>
           {% endif %}
+          <span style="font-size:0.82rem;color:var(--text);min-width:80px">{{ r.scenario or '—' }}</span>
+          <span style="font-size:0.78rem;color:var(--text-muted);min-width:60px">{{ r.seqlens or '—' }}</span>
+          <span style="flex:1"></span>
+          {% if r.status == 'published' %}<span class="badge badge-green" style="font-size:0.68rem">published</span>
+          {% elif r.status == 'internal_review' %}<span class="badge badge-blue" style="font-size:0.68rem">internal review</span>
+          {% elif r.status == 'accuracy_gate' %}<span class="badge badge-blue" style="font-size:0.68rem">accuracy gate</span>
+          {% elif r.status == 'config_search' %}<span class="badge badge-amber" style="font-size:0.68rem">config search</span>
+          {% elif r.status == 'not_started' %}<span class="badge badge-muted" style="font-size:0.68rem">not started</span>
+          {% else %}<span class="badge badge-muted" style="font-size:0.68rem">{{ r.status or '—' }}</span>{% endif %}
+          {% if r.priority %}<span class="badge badge-p{{ r.priority }}" style="font-size:0.68rem">P{{ r.priority }}</span>{% endif %}
+          {% if r.pic %}<span style="font-size:0.72rem;color:var(--text-label);min-width:90px;text-align:right">{{ r.pic }}</span>{% endif %}
+          {% if r.nv_tps is not none %}
+          <span class="font-metric" style="font-size:0.78rem;color:var(--green);min-width:80px;text-align:right">NV {{ "%.0f"|format(r.nv_tps) }}</span>
+          {% endif %}
+          {% if r.gap_pct is not none %}
+          <span class="font-metric {% if r.gap_pct >= 0 %}gap-win{% else %}gap-behind{% endif %}" style="font-size:0.78rem;min-width:60px;text-align:right">{{ "%+.0f"|format(r.gap_pct * 100) }}%</span>
+          {% endif %}
+        </a>
         {% endfor %}
-        {% set pcls = "p" ~ gpriority.val if gpriority.val else "" %}
-
-        {# ── Group header ── #}
-        <tr class="wl-group-header {{ pcls }}" data-group="{{ gid }}">
-          <td colspan="13">
-            <div style="display:flex;align-items:center;gap:0.5rem">
-              <button class="group-toggle" data-group-toggle="{{ gid }}" data-open="1"
-                onclick="toggleGroup('{{ gid }}');event.stopPropagation()"
-                title="Collapse group">&#9662;</button>
-              <span style="color:var(--text);font-weight:500">{{ model }}</span>
-              <span style="color:var(--border)">&#183;</span>
-              <span style="color:var(--text-muted)">{{ hw }}</span>
-              <span style="color:var(--border)">&#183;</span>
-              <span style="color:var(--text-muted)">{{ fw }}</span>
-              <span style="color:var(--border)">&#183;</span>
-              <span style="color:var(--text-muted)">{{ prec }}</span>
-              <span style="color:var(--border)">&#183;</span>
-              <span style="color:var(--text-muted)">{{ scenario }}</span>
-              <span style="margin-left:auto;display:flex;align-items:center;gap:0.5rem">
-                {% if gpriority.val %}
-                  <span class="badge badge-p{{ gpriority.val }}">P{{ gpriority.val }}</span>
-                {% endif %}
-                <span style="color:var(--text-label);font-size:0.75rem">{{ rows|length }} row{{ "s" if rows|length != 1 }}</span>
-              </span>
-            </div>
-          </td>
-        </tr>
-
-        {# ── Data rows for this group ── #}
-        {% for w in rows %}
-          {% set gap_class = "gap-win" if w.gap_pct is not none and w.gap_pct >= 0 else ("gap-behind" if w.gap_pct is not none else "gap-even") %}
-          <tr class="wl-row wl-member" id="row-{{ w.id }}" data-group-member="{{ gid }}">
-
-            {# expand button #}
-            <td style="width:22px;padding-right:0">
-              <button class="expand-btn" id="expand-btn-{{ w.id }}"
-                hx-get="/workloads/{{ w.id }}/expand"
-                hx-target="#expand-content-{{ w.id }}"
-                hx-swap="innerHTML"
-                hx-trigger="click[!this.classList.contains('loaded')] once"
-                onclick="toggleExpand('{{ w.id }}')"
-                title="Expand details">&#9654;</button>
-            </td>
-
-            {# seqlens — editable #}
-            <td style="font-size:0.80rem;font-family:'Rajdhani',sans-serif;letter-spacing:0.03em">
-              {% if editable %}
-                <span class="editable-field"
-                  hx-get="/workloads/{{ w.id }}/seqlens/edit"
-                  hx-trigger="click" hx-target="this" hx-swap="outerHTML"
-                  title="Edit seqlens">{{ w.seqlens }}</span>
-              {% else %}
-                <span class="locked-field" title="Sign in to edit">{{ w.seqlens }}</span>
-              {% endif %}
-            </td>
-
-            {# status — editable badge #}
-            <td>
-              {% if editable %}
-                <span class="editable-field"
-                  hx-get="/workloads/{{ w.id }}/status/edit"
-                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
-                  {% if w.status == "published" %}<span class="badge badge-green">{{ w.status }}</span>
-                  {% elif w.status == "accuracy_gate" %}<span class="badge badge-amber">{{ w.status }}</span>
-                  {% elif w.status == "not_started" or not w.status %}<span class="badge badge-muted">{{ w.status or "not_started" }}</span>
-                  {% else %}<span class="badge badge-blue">{{ w.status }}</span>
-                  {% endif %}
-                </span>
-              {% else %}
-                {% if w.status == "published" %}<span class="badge badge-green">{{ w.status }}</span>
-                {% elif w.status == "accuracy_gate" %}<span class="badge badge-amber">{{ w.status }}</span>
-                {% elif w.status == "not_started" or not w.status %}<span class="badge badge-muted">{{ w.status or "not_started" }}</span>
-                {% else %}<span class="badge badge-blue">{{ w.status }}</span>
-                {% endif %}
-              {% endif %}
-            </td>
-
-            {# pic — editable #}
-            <td>
-              {% if editable %}
-                <span class="editable-field"
-                  hx-get="/workloads/{{ w.id }}/pic/edit"
-                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
-                  {% if w.pic %}<span>{{ w.pic }}</span>
-                  {% else %}<span style="color:var(--amber);font-size:0.78rem">&#9888; unassigned</span>{% endif %}
-                </span>
-              {% else %}
-                {% if w.pic %}<span>{{ w.pic }}</span>
-                {% else %}<span style="color:var(--amber);font-size:0.78rem">&#9888; unassigned</span>{% endif %}
-              {% endif %}
-            </td>
-
-            {# priority — editable #}
-            <td>
-              {% if editable %}
-                <span class="editable-field"
-                  hx-get="/workloads/{{ w.id }}/priority/edit"
-                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
-                  {% if w.priority %}<span class="badge badge-p{{ w.priority }}">P{{ w.priority }}</span>
-                  {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
-                </span>
-              {% else %}
-                {% if w.priority %}<span class="badge badge-p{{ w.priority }}">P{{ w.priority }}</span>
-                {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
-              {% endif %}
-            </td>
-
-            {# work_type — editable #}
-            <td>
-              {% if editable %}
-                <span class="editable-field"
-                  hx-get="/workloads/{{ w.id }}/work_type/edit"
-                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
-                  {% if w.work_type == "breadth_test" %}<span class="badge badge-blue">{{ w.work_type }}</span>
-                  {% elif w.work_type %}<span class="badge badge-muted">{{ w.work_type }}</span>
-                  {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
-                </span>
-              {% else %}
-                {% if w.work_type == "breadth_test" %}<span class="badge badge-blue">{{ w.work_type }}</span>
-                {% elif w.work_type %}<span class="badge badge-muted">{{ w.work_type }}</span>
-                {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
-              {% endif %}
-            </td>
-
-            {# nv_tps — editable #}
-            <td class="font-metric">
-              {% if editable %}
-                <span class="editable-field"
-                  hx-get="/workloads/{{ w.id }}/nv_tps/edit"
-                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
-                  {% if w.nv_tps is not none %}{{ "%.0f"|format(w.nv_tps) }}{% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
-                </span>
-              {% else %}
-                {% if w.nv_tps is not none %}{{ "%.0f"|format(w.nv_tps) }}{% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
-              {% endif %}
-            </td>
-
-            {# amd_tps — editable #}
-            <td class="font-metric">
-              {% if editable %}
-                <span class="editable-field"
-                  hx-get="/workloads/{{ w.id }}/amd_tps/edit"
-                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
-                  {% if w.amd_tps is not none %}{{ "%.0f"|format(w.amd_tps) }}{% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
-                </span>
-              {% else %}
-                {% if w.amd_tps is not none %}{{ "%.0f"|format(w.amd_tps) }}{% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
-              {% endif %}
-            </td>
-
-            {# gap — computed, not editable #}
-            <td class="font-metric {{ gap_class }}">
-              {% if w.gap_pct is not none %}{{ "%+.1f"|format(w.gap_pct * 100) }}%
-              {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
-            </td>
-
-            {# infmax_submitted — editable #}
-            <td>
-              {% if editable %}
-                <span class="editable-field"
-                  hx-get="/workloads/{{ w.id }}/infmax_submitted/edit"
-                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
-                  {% if w.infmax_submitted %}<span class="badge badge-green">&#10003; {{ w.infmax_submitted }}</span>
-                  {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
-                </span>
-              {% else %}
-                {% if w.infmax_submitted %}<span class="badge badge-green">&#10003; {{ w.infmax_submitted }}</span>
-                {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
-              {% endif %}
-            </td>
-
-            {# ibdb_link — editable #}
-            <td>
-              {% if editable %}
-                <span class="editable-field"
-                  hx-get="/workloads/{{ w.id }}/ibdb_link/edit"
-                  hx-trigger="click" hx-target="this" hx-swap="outerHTML">
-                  {% if w.ibdb_link %}<a href="{{ w.ibdb_link }}" target="_blank" rel="noopener"
-                    style="color:var(--blue);text-decoration:none;font-size:0.78rem" onclick="event.stopPropagation()">IBDB &#8599;</a>
-                  {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
-                </span>
-              {% else %}
-                {% if w.ibdb_link %}<a href="{{ w.ibdb_link }}" target="_blank" rel="noopener"
-                  style="color:var(--blue);text-decoration:none;font-size:0.78rem">IBDB &#8599;</a>
-                {% else %}<span style="color:var(--text-label)">&#8212;</span>{% endif %}
-              {% endif %}
-            </td>
-
-            {# config — read-only link #}
-            <td>
-              {% set cv = latest_configs.get(w.id) if latest_configs else None %}
-              {% if cv %}
-                <a href="/workloads/{{ w.id }}" style="color:var(--blue);font-size:0.78rem;text-decoration:none">v{{ cv }} &#8594;</a>
-              {% else %}
-                <a href="/workloads/{{ w.id }}" style="color:var(--text-label);font-size:0.78rem;text-decoration:none">detail &#8594;</a>
-              {% endif %}
-            </td>
-
-            {# sentinel badge #}
-            <td>
-              {% if w.sentinel_threat_level %}
-                {% set pill_color = "var(--green)" if w.sentinel_threat_level == "GREEN" else ("var(--amber)" if w.sentinel_threat_level == "YELLOW" else "var(--red)") %}
-                {% set pill_label = "🟢 SA" if w.sentinel_threat_level == "GREEN" else ("🟡 SA" if w.sentinel_threat_level == "YELLOW" else "🔴 SA") %}
-                <a href="{{ w.sentinel_image_url or '#' }}" target="_blank" rel="noopener"
-                   title="{{ w.sentinel_summary or '' }}"
-                   style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:0.74rem;text-decoration:none;background:transparent;border:1px solid {{ pill_color }};color:{{ pill_color }}">
-                  {{ pill_label }}
-                </a>
-              {% else %}
-                <span style="color:var(--text-label)">&#8212;</span>
-              {% endif %}
-            </td>
-          </tr>
-
-          {# ── Expand / detail row (lazy-loaded, hidden by default) ── #}
-          <tr class="detail-row hidden" id="expand-row-{{ w.id }}" data-group-member="{{ gid }}">
-            <td colspan="13">
-              <div id="expand-content-{{ w.id }}" class="detail-panel">
-                <div style="color:var(--text-muted);font-size:0.80rem">Loading&#8230;</div>
-              </div>
-            </td>
-          </tr>
-        {% endfor %}
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-
-{# ── Add workload modal (auth-gated) ───────────────────────────── #}
-{% if editable %}
-<div id="add-modal" class="hidden fixed inset-0 flex items-center justify-center" style="background:rgba(0,0,0,0.6);z-index:100">
-  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1.5rem;width:480px">
-    <h2 class="font-metric text-lg font-bold mb-4">Add Workload</h2>
-    <form
-      hx-post="/workloads"
-      hx-target="#workload-tbody"
-      hx-swap="afterbegin"
-      hx-on::after-request="if(event.detail.successful) document.getElementById('add-modal').classList.add('hidden')"
-    >
-      {% for field, placeholder in [
-        ("model","e.g. DSR1"), ("hardware","e.g. B200"), ("framework","e.g. vLLM"),
-        ("precision","e.g. FP8"), ("scenario","e.g. agg"), ("seqlens","e.g. 1k/1k")
-      ] %}
-      <div class="mb-3">
-        <label class="block mb-1" style="font-size:0.72rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em">{{ field }}</label>
-        <input name="{{ field }}" placeholder="{{ placeholder }}" required class="edit-input w-full">
       </div>
       {% endfor %}
-      <div class="flex gap-3 mt-4">
-        <button type="submit" class="badge badge-green" style="cursor:pointer;padding:6px 14px">Add</button>
-        <button type="button" onclick="document.getElementById('add-modal').classList.add('hidden')"
-          class="badge badge-muted" style="cursor:pointer;padding:6px 14px">Cancel</button>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div style="text-align:center;padding:4rem;color:var(--text-muted)">No workloads match your filters.</div>
+{% endif %}
+</div>
+
+{# ── Matrix view (hidden by default) ── #}
+<div id="matrix-view" style="display:none;overflow-x:auto"></div>
+
+{# ── Request Modal ── #}
+<div id="request-modal"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:200;align-items:center;justify-content:center">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:2rem;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-metric font-bold" style="color:var(--text);font-size:1.05rem">Request workload</h3>
+      <button onclick="closeRequestModal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem">✕</button>
+    </div>
+    <div id="request-success" style="display:none;background:rgba(118,185,0,0.1);border:1px solid var(--green);border-radius:6px;padding:0.75rem;margin-bottom:1rem;color:var(--green);font-size:0.85rem">
+      ✓ Request submitted — workload added.
+    </div>
+    <form id="request-form">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+        <div>
+          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Model *</label>
+          <input id="req-model" list="opt-model" required placeholder="e.g. DeepSeek-R1"
+                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
+          <datalist id="opt-model">{% for m in filter_options.model %}<option value="{{ m }}">{% endfor %}</datalist>
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Hardware *</label>
+          <input id="req-hardware" list="opt-hw" required placeholder="e.g. B200"
+                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
+          <datalist id="opt-hw">{% for h in filter_options.hardware %}<option value="{{ h }}">{% endfor %}</datalist>
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Framework *</label>
+          <input id="req-framework" list="opt-fw" required placeholder="e.g. TRT-LLM"
+                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
+          <datalist id="opt-fw">{% for f in filter_options.framework %}<option value="{{ f }}">{% endfor %}</datalist>
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Precision *</label>
+          <input id="req-precision" list="opt-prec" required placeholder="e.g. FP8"
+                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
+          <datalist id="opt-prec">{% for p in filter_options.precision %}<option value="{{ p }}">{% endfor %}</datalist>
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Scenario *</label>
+          <input id="req-scenario" list="opt-scen" required placeholder="e.g. agg"
+                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
+          <datalist id="opt-scen">{% for s in filter_options.scenario %}<option value="{{ s }}">{% endfor %}</datalist>
+        </div>
+        <div>
+          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Seqlens</label>
+          <input id="req-seqlens" list="opt-seqlen" placeholder="e.g. 1k/1k"
+                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
+          <datalist id="opt-seqlen">{% for s in filter_options.seqlens %}<option value="{{ s }}">{% endfor %}</datalist>
+        </div>
+      </div>
+      <div style="margin-top:0.75rem">
+        <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Reason / notes</label>
+        <textarea id="req-notes" rows="2" placeholder="Why is this needed? Context for the team…"
+                  style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem;resize:vertical"></textarea>
+      </div>
+      <div id="request-error" style="display:none;color:var(--red);font-size:0.82rem;margin-top:0.5rem"></div>
+      <div class="flex gap-2 justify-end" style="margin-top:1rem">
+        <button type="button" onclick="closeRequestModal()"
+                style="font-size:0.85rem;padding:6px 14px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer">
+          Cancel
+        </button>
+        <button type="submit"
+                style="font-size:0.85rem;padding:6px 18px;border-radius:5px;border:none;background:var(--green);color:#000;font-weight:700;cursor:pointer">
+          Submit Request
+        </button>
       </div>
     </form>
   </div>
 </div>
-{% endif %}
 
 <script>
-// ── Collapse / expand all groups ────────────────────────────────
-function collapseAll() {
-  document.querySelectorAll('[data-group-toggle]').forEach(btn => {
-    if (btn.dataset.open === "1") toggleGroup(btn.dataset.groupToggle);
-  });
-}
-function expandAll() {
-  document.querySelectorAll('[data-group-toggle]').forEach(btn => {
-    if (btn.dataset.open === "0") toggleGroup(btn.dataset.groupToggle);
-  });
+var _allRows = {{ rows_json | safe }};
+
+// ── Tree collapse/expand ──
+function toggleModel(btn) {
+  var block = btn.closest('.model-block');
+  var body = block.querySelector('.model-body');
+  var arrow = btn.querySelector('span:first-child');
+  var collapsed = body.style.display === 'none';
+  body.style.display = collapsed ? 'block' : 'none';
+  arrow.textContent = collapsed ? '▼' : '▶';
 }
 
-// ── Group collapse ───────────────────────────────────────────────
-function toggleGroup(gid) {
-  const btn = document.querySelector(`[data-group-toggle="${gid}"]`);
-  const isOpen = btn.dataset.open === "1";
-  document.querySelectorAll(`[data-group-member="${gid}"]`).forEach(r => {
-    r.classList.toggle('hidden', isOpen);
-  });
-  btn.dataset.open = isOpen ? "0" : "1";
-  btn.textContent = isOpen ? "\u25B8" : "\u25BE";
-}
-
-// ── Row expand ───────────────────────────────────────────────────
-function toggleExpand(id) {
-  const row = document.getElementById('expand-row-' + id);
-  const btn = document.getElementById('expand-btn-' + id);
-  const opening = row.classList.toggle('hidden');
-  // opening==true means we just hid it (toggle returns true if class was ADDED)
-  if (!opening) {
-    btn.classList.add('open');
-    btn.textContent = '\u25BE';
+// ── View toggle ──
+var _matrixBuilt = false;
+function toggleView() {
+  var tree = document.getElementById('tree-view');
+  var matrix = document.getElementById('matrix-view');
+  var btn = document.getElementById('view-toggle-btn');
+  if (tree.style.display !== 'none') {
+    tree.style.display = 'none';
+    matrix.style.display = 'block';
+    btn.textContent = 'Tree view';
+    if (!_matrixBuilt) { buildMatrix(); _matrixBuilt = true; }
   } else {
-    btn.classList.remove('open');
-    btn.textContent = '\u25B6';
+    tree.style.display = 'block';
+    matrix.style.display = 'none';
+    btn.textContent = 'Matrix view';
   }
+}
+
+function buildMatrix() {
+  var rows = _allRows;
+  var models = [], stacks = [], modelSet = {}, stackSet = {};
+  rows.forEach(function(r) {
+    var m = r.model || '?';
+    var s = (r.hardware || '?') + ' · ' + (r.framework || '?') + ' · ' + (r.precision || '?');
+    if (!modelSet[m]) { modelSet[m] = true; models.push(m); }
+    if (!stackSet[s]) { stackSet[s] = true; stacks.push(s); }
+  });
+  var lookup = {};
+  rows.forEach(function(r) {
+    var key = (r.model || '?') + '|||' + (r.hardware || '?') + ' · ' + (r.framework || '?') + ' · ' + (r.precision || '?');
+    if (!lookup[key]) lookup[key] = [];
+    lookup[key].push(r.status);
+  });
+
+  function cellColor(statuses) {
+    if (!statuses || !statuses.length) return null;
+    if (statuses.every(function(s) { return s === 'published'; })) return '#76b900';
+    if (statuses.some(function(s) { return s === 'internal_review' || s === 'accuracy_gate'; })) return '#00b4d8';
+    if (statuses.some(function(s) { return s === 'config_search'; })) return '#fbbf24';
+    return '#666';
+  }
+  function cellLabel(statuses) {
+    if (!statuses || !statuses.length) return '—';
+    if (statuses.length === 1) return statuses[0].replace('_', ' ');
+    return statuses.length + ' items';
+  }
+
+  var html = '<table style="border-collapse:collapse;font-size:0.75rem"><thead><tr>'
+    + '<th style="text-align:left;padding:6px 14px;position:sticky;left:0;background:var(--bg-card);border-bottom:2px solid var(--border);white-space:nowrap;z-index:1;min-width:160px">Model</th>';
+  stacks.forEach(function(s) {
+    html += '<th style="padding:6px 10px;border-bottom:2px solid var(--border);text-align:center;max-width:130px;white-space:normal;word-break:break-word;color:var(--text-muted);font-size:0.7rem">' + s + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+  models.forEach(function(m) {
+    html += '<tr><td style="padding:6px 14px;position:sticky;left:0;background:var(--bg-card);border-bottom:1px solid var(--border);font-weight:600;color:var(--text);white-space:nowrap;z-index:1">' + m + '</td>';
+    stacks.forEach(function(s) {
+      var statuses = lookup[m + '|||' + s];
+      var color = cellColor(statuses);
+      if (color) {
+        html += '<td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:center">'
+          + '<span style="display:inline-block;padding:2px 7px;border-radius:3px;background:' + color + '22;border:1px solid ' + color + ';color:' + color + ';font-size:0.68rem;white-space:nowrap">'
+          + cellLabel(statuses) + '</span></td>';
+      } else {
+        html += '<td style="padding:5px 10px;border-bottom:1px solid var(--border);text-align:center;color:var(--border);font-size:0.85rem">—</td>';
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('matrix-view').innerHTML = html;
+}
+
+// ── Request modal ──
+function openRequestModal(prefill) {
+  prefill = prefill || {};
+  document.getElementById('req-model').value = prefill.model || '';
+  document.getElementById('req-hardware').value = prefill.hardware || '';
+  document.getElementById('req-framework').value = prefill.framework || '';
+  document.getElementById('req-precision').value = prefill.precision || '';
+  document.getElementById('req-scenario').value = prefill.scenario || '';
+  document.getElementById('req-seqlens').value = prefill.seqlens || '';
+  document.getElementById('req-notes').value = '';
+  document.getElementById('request-success').style.display = 'none';
+  document.getElementById('request-error').style.display = 'none';
+  document.getElementById('request-modal').style.display = 'flex';
+  document.getElementById('req-model').focus();
+}
+
+function closeRequestModal() {
+  document.getElementById('request-modal').style.display = 'none';
+}
+
+document.getElementById('request-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var errEl = document.getElementById('request-error');
+  errEl.style.display = 'none';
+  var payload = {
+    model: document.getElementById('req-model').value.trim(),
+    hardware: document.getElementById('req-hardware').value.trim(),
+    framework: document.getElementById('req-framework').value.trim(),
+    precision: document.getElementById('req-precision').value.trim(),
+    scenario: document.getElementById('req-scenario').value.trim(),
+    seqlens: document.getElementById('req-seqlens').value.trim() || null,
+    notes: document.getElementById('req-notes').value.trim() || null,
+    status: 'not_started',
+  };
+  fetch('/workloads', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  })
+  .then(function(r) {
+    if (!r.ok) return r.json().then(function(d) { throw new Error(d.detail || r.status); });
+    return r.json();
+  })
+  .then(function() {
+    document.getElementById('request-success').style.display = 'block';
+    setTimeout(function() { closeRequestModal(); window.location.reload(); }, 1200);
+  })
+  .catch(function(err) {
+    errEl.textContent = 'Error: ' + err.message;
+    errEl.style.display = 'block';
+  });
+});
+
+document.getElementById('request-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeRequestModal();
+});
+
+// ── Export ──
+function exportCSV() {
+  var cols = ['model','hardware','framework','precision','scenario','seqlens','status','pic','priority','nv_tps','amd_tps','gap_pct','notes'];
+  var csv = cols.join(',') + '\n' + _allRows.map(function(r) {
+    return cols.map(function(c) {
+      var v = r[c] == null ? '' : String(r[c]);
+      return (v.includes(',') || v.includes('"') || v.includes('\n')) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    }).join(',');
+  }).join('\n');
+  _dl(csv, 'coverage_' + _today() + '.csv', 'text/csv');
+}
+
+function exportJSON() {
+  _dl(JSON.stringify(_allRows, null, 2), 'coverage_' + _today() + '.json', 'application/json');
+}
+
+function _today() { return new Date().toISOString().slice(0, 10); }
+
+function _dl(content, filename, mime) {
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type: mime}));
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
 }
 </script>
 
