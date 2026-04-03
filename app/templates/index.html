@@ -455,6 +455,14 @@ function buildSummary() {
   var rows = _allRows;
   var html = '';
 
+  // ── NVIDIA brand color palette ──
+  var C_PUB = '#76b900';  // NVIDIA Green — published
+  var C_FLY = '#4d7a00';  // mid green — in flight
+  var C_CFG = '#2e4800';  // dark green — config search
+  var C_NS  = '#2a2a2a';  // near black — not started
+  var CT_FLY = '#6aaa00'; // readable text for in-flight
+  var CT_CFG = '#5a8a00'; // readable text for config search
+
   // Pre-compute common lookups
   var modelCount = {}, modelRows = {};
   rows.forEach(function(r) {
@@ -464,106 +472,152 @@ function buildSummary() {
     modelRows[m].push(r);
   });
   var models = Object.keys(modelCount).sort(function(a,b){ return modelCount[b]-modelCount[a]; });
-
   var hwSet = {};
   rows.forEach(function(r){ if(r.hardware) hwSet[r.hardware]=true; });
   var hardwares = Object.keys(hwSet).sort();
 
-  // ─────────────────────────────────────────────────
-  // OPTION 1: Context frontier — which models have long-context data?
-  // ─────────────────────────────────────────────────
-  html += _sectionHdr(1, 'Context Frontier', 'Max seqlen tested per model — gaps reveal untested context lengths');
+  function _stackBar(sc, h, r) {
+    h = h || 8; r = r || 3;
+    var segs = '';
+    if (sc.pub) segs += '<div style="flex:' + sc.pub + ';background:' + C_PUB + '"></div>';
+    if (sc.fly) segs += '<div style="flex:' + sc.fly + ';background:' + C_FLY + '"></div>';
+    if (sc.cfg) segs += '<div style="flex:' + sc.cfg + ';background:' + C_CFG + '"></div>';
+    if (sc.ns)  segs += '<div style="flex:' + sc.ns  + ';background:' + C_NS  + '"></div>';
+    return '<div style="display:flex;border-radius:' + r + 'px;overflow:hidden;height:' + h + 'px;background:#181818">' + segs + '</div>';
+  }
+  function _bestStatus(arr) {
+    if (arr.some(function(r){return r.status==='published';})) return 'pub';
+    if (arr.some(function(r){return r.status==='internal_review'||r.status==='accuracy_gate';})) return 'fly';
+    if (arr.some(function(r){return r.status==='config_search';})) return 'cfg';
+    return 'ns';
+  }
+  function _legend() {
+    return '<div style="display:flex;gap:1.25rem;margin-top:0.75rem;font-size:0.72rem;color:var(--text-muted)">'
+      + '<span><span style="display:inline-block;width:10px;height:10px;background:' + C_PUB + ';border-radius:2px;margin-right:3px"></span>published</span>'
+      + '<span><span style="display:inline-block;width:10px;height:10px;background:' + C_FLY + ';border-radius:2px;margin-right:3px"></span>in flight</span>'
+      + '<span><span style="display:inline-block;width:10px;height:10px;background:' + C_CFG + ';border-radius:2px;margin-right:3px"></span>config search</span>'
+      + '<span><span style="display:inline-block;width:10px;height:10px;background:#404040;border-radius:2px;margin-right:3px"></span>not started</span>'
+      + '</div>';
+  }
+  function _countBadges(sc) {
+    var parts = [];
+    if (sc.pub) parts.push('<span style="color:' + C_PUB + '">✓ ' + sc.pub + '</span>');
+    if (sc.fly) parts.push('<span style="color:' + CT_FLY + '">⟳ ' + sc.fly + '</span>');
+    if (sc.cfg) parts.push('<span style="color:' + CT_CFG + '">⚙ ' + sc.cfg + '</span>');
+    if (sc.ns)  parts.push('<span style="color:#555">○ ' + sc.ns + '</span>');
+    return parts.join(' ');
+  }
 
-  var modelMaxSeq = {};
-  var modelMaxSeqLabel = {};
-  var modelSeqlensAll = {};
+  // ─────────────────────────────────────────────────
+  // OPTION 1: Context Frontier
+  // ─────────────────────────────────────────────────
+  html += _sectionHdr(1, 'Context Frontier', 'Max seqlen per model — chips show every seqlen tested, colored by status');
+
+  var modelMaxSeq = {}, modelMaxSeqLabel = {}, modelSeqMap = {};
   rows.forEach(function(r) {
     var m = r.model || '?';
     var k = _seqK(r.seqlens);
-    if (!modelMaxSeq[m] || k > modelMaxSeq[m]) {
-      modelMaxSeq[m] = k;
-      modelMaxSeqLabel[m] = r.seqlens || '?';
+    if (!modelMaxSeq[m] || k > modelMaxSeq[m]) { modelMaxSeq[m] = k; modelMaxSeqLabel[m] = r.seqlens || '?'; }
+    if (!modelSeqMap[m]) modelSeqMap[m] = {};
+    if (r.seqlens) {
+      if (!modelSeqMap[m][r.seqlens]) modelSeqMap[m][r.seqlens] = [];
+      modelSeqMap[m][r.seqlens].push(r);
     }
-    if (!modelSeqlensAll[m]) modelSeqlensAll[m] = {};
-    if (r.seqlens) modelSeqlensAll[m][r.seqlens] = true;
   });
   var globalMax = Math.max.apply(null, Object.values(modelMaxSeq).concat([1]));
   var modelsBySeq = models.slice().sort(function(a,b){ return (modelMaxSeq[b]||0)-(modelMaxSeq[a]||0); });
 
-  html += '<div style="max-width:700px">';
+  html += '<div style="max-width:820px">';
   modelsBySeq.forEach(function(m) {
     var maxK = modelMaxSeq[m] || 0;
-    var pct = globalMax > 0 ? Math.max(2, Math.round(maxK / globalMax * 100)) : 2;
-    var seqlensAll = Object.keys(modelSeqlensAll[m] || {}).sort(function(a,b){return _seqK(a)-_seqK(b);});
+    var pct = globalMax > 0 ? Math.max(3, Math.round(maxK / globalMax * 100)) : 3;
     var sc = _statusCounts(modelRows[m] || []);
-    var barColor = sc.pub > 0 ? 'var(--green)' : sc.fly > 0 ? 'var(--blue)' : sc.cfg > 0 ? 'var(--amber)' : '#555';
-    html += '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.6rem">'
-      + '<div style="width:160px;text-align:right;font-size:0.82rem;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + m + '</div>'
-      + '<div style="flex:1;background:var(--bg-card);border-radius:4px;height:20px;border:1px solid var(--border);position:relative">'
-      + '<div style="width:' + pct + '%;background:' + barColor + ';border-radius:3px;height:100%;opacity:0.85"></div>'
+    var barC = sc.pub > 0 ? C_PUB : sc.fly > 0 ? C_FLY : sc.cfg > 0 ? C_CFG : '#3a3a3a';
+    var seqlens = Object.keys(modelSeqMap[m] || {}).sort(function(a,b){return _seqK(a)-_seqK(b);});
+    var chips = seqlens.map(function(sl) {
+      var best = _bestStatus(modelSeqMap[m][sl]);
+      var cc = best==='pub'?C_PUB : best==='fly'?CT_FLY : best==='cfg'?CT_CFG : '#484848';
+      var bg = best==='pub'?'rgba(118,185,0,0.13)' : best==='fly'?'rgba(77,122,0,0.15)' : best==='cfg'?'rgba(46,72,0,0.2)' : 'rgba(42,42,42,0.6)';
+      var wlCount = modelSeqMap[m][sl].length;
+      return '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;border:1px solid ' + cc + ';background:' + bg + ';color:' + cc + ';font-size:0.7rem;font-weight:600;white-space:nowrap">'
+        + sl + (wlCount > 1 ? '<span style="opacity:0.7;font-weight:400">×' + wlCount + '</span>' : '') + '</span>';
+    }).join('');
+    html += '<div style="display:flex;align-items:flex-start;gap:0.75rem;margin-bottom:1rem">'
+      + '<div style="width:148px;text-align:right;font-size:0.82rem;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:2px;flex-shrink:0">' + m + '</div>'
+      + '<div style="flex:1;min-width:0">'
+      + '<div style="background:#181818;border-radius:4px;height:16px;border:1px solid var(--border);overflow:hidden;margin-bottom:0.45rem">'
+      + '<div style="width:' + pct + '%;background:' + barC + ';height:100%"></div></div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:0.3rem">' + chips + '</div>'
       + '</div>'
-      + '<div style="width:160px;font-size:0.75rem;color:var(--text-muted)">'
-      + '<span style="color:var(--text);font-weight:600">' + (modelMaxSeqLabel[m] || '—') + '</span>'
-      + ' · ' + seqlensAll.length + ' seqlen' + (seqlensAll.length !== 1 ? 's' : '')
+      + '<div style="width:168px;font-size:0.72rem;color:var(--text-muted);padding-top:1px;flex-shrink:0;line-height:1.7">'
+      + '<div class="font-metric" style="font-weight:700;color:var(--text);font-size:0.9rem">' + (modelMaxSeqLabel[m]||'—') + ' max</div>'
+      + '<div>' + _countBadges(sc) + '</div>'
       + '</div>'
       + '</div>';
   });
   html += '</div>';
 
   // ─────────────────────────────────────────────────
-  // OPTION 2: Model coverage at a glance — who's tested, how far along?
+  // OPTION 2: Model Coverage Scorecards
   // ─────────────────────────────────────────────────
-  html += _sectionHdr(2, 'Model Coverage', 'Quick status rollup per model — spot models with zero traction or all not-started');
+  html += _sectionHdr(2, 'Model Coverage', 'Each card lists every hw/framework/precision stack and its status — spot untouched stacks at a glance');
 
   html += '<div style="display:flex;flex-wrap:wrap;gap:0.75rem">';
   models.forEach(function(m) {
     var mr = modelRows[m] || [];
     var total = mr.length;
     var sc = _statusCounts(mr);
-    var hwSet2 = {}, fwSet = {};
-    mr.forEach(function(r){ if(r.hardware) hwSet2[r.hardware]=true; if(r.framework) fwSet[r.framework]=true; });
-    var hws = Object.keys(hwSet2).join(', ');
-    var fws = Object.keys(fwSet).join(', ');
+    var allDone = sc.pub === total;
+    var cardBorder = allDone ? C_PUB : sc.ns === total ? '#333' : 'var(--border)';
 
-    // Stacked bar segments
-    var segments = [
-      {n: sc.pub, c: 'var(--green)'},
-      {n: sc.fly, c: 'var(--blue)'},
-      {n: sc.cfg, c: 'var(--amber)'},
-      {n: sc.ns,  c: '#444'},
-    ];
-    var barHtml = segments.map(function(s) {
-      if (!s.n) return '';
-      return '<div style="flex:' + s.n + ';background:' + s.c + ';height:6px"></div>';
+    // Group by hw · fw · precision
+    var stackMap = {};
+    mr.forEach(function(r) {
+      var key = [r.hardware||'?', r.framework||'?', r.precision||'?'].join(' · ');
+      if (!stackMap[key]) stackMap[key] = [];
+      stackMap[key].push(r);
+    });
+
+    var stackLines = Object.keys(stackMap).map(function(key) {
+      var sr = stackMap[key];
+      var best = _bestStatus(sr);
+      var icon = best==='pub'?'✓' : best==='fly'?'⟳' : best==='cfg'?'⚙' : '○';
+      var ic   = best==='pub'?C_PUB : best==='fly'?CT_FLY : best==='cfg'?CT_CFG : '#3a3a3a';
+      // Show scenario coverage for this stack
+      var scenarios = sr.map(function(r){return (r.scenario||'') + (r.seqlens?' '+r.seqlens:'');}).filter(Boolean);
+      var scenStr = scenarios.length <= 3 ? scenarios.join(', ') : scenarios.slice(0,3).join(', ') + ' +' + (scenarios.length-3);
+      return '<div style="display:flex;align-items:flex-start;gap:0.4rem;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04)">'
+        + '<span style="color:' + ic + ';font-size:0.75rem;flex-shrink:0;margin-top:1px">' + icon + '</span>'
+        + '<div style="min-width:0">'
+        + '<div style="font-size:0.73rem;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + key + '</div>'
+        + (scenStr ? '<div style="font-size:0.65rem;color:var(--text-label)">' + scenStr + '</div>' : '')
+        + '</div>'
+        + (sr.length > 1 ? '<span style="font-size:0.65rem;color:#444;flex-shrink:0;margin-left:auto">×' + sr.length + '</span>' : '')
+        + '</div>';
     }).join('');
 
-    var allDone = sc.pub === total;
-    var noneStarted = sc.ns === total;
-    var cardBorder = allDone ? 'var(--green)' : noneStarted ? '#444' : 'var(--border)';
-
-    html += '<div style="width:220px;padding:0.85rem 1rem;border-radius:8px;border:1px solid ' + cardBorder + ';background:var(--bg-card)">'
-      + '<div style="font-weight:700;font-size:0.88rem;color:var(--text);margin-bottom:0.5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + m + '</div>'
-      + '<div style="display:flex;border-radius:3px;overflow:hidden;height:6px;margin-bottom:0.5rem;background:var(--border)">' + barHtml + '</div>'
-      + '<div style="font-size:0.7rem;color:var(--text-muted);line-height:1.7">'
-      + (sc.pub ? '<span style="color:var(--green)">✓ ' + sc.pub + ' pub</span>  ' : '')
-      + (sc.fly ? '<span style="color:var(--blue)">⟳ ' + sc.fly + ' fly</span>  ' : '')
-      + (sc.cfg ? '<span style="color:var(--amber)">⚙ ' + sc.cfg + ' cfg</span>  ' : '')
-      + (sc.ns  ? '<span style="color:#666">· ' + sc.ns + ' not started</span>' : '')
-      + '<br><span style="color:var(--text-label)">' + hws + '</span>'
-      + (fws ? '<br><span style="color:var(--text-label)">' + fws + '</span>' : '')
-      + '</div></div>';
+    html += '<div style="width:256px;padding:0.9rem 1rem;border-radius:8px;border:1px solid ' + cardBorder + ';background:var(--bg-card)">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.45rem">'
+      + '<div style="font-weight:700;font-size:0.88rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + m + '</div>'
+      + '<div style="font-size:0.68rem;color:var(--text-label);flex-shrink:0;margin-left:0.5rem">' + total + ' wl</div>'
+      + '</div>'
+      + _stackBar(sc, 6, 3)
+      + '<div style="font-size:0.68rem;margin:0.35rem 0 0.6rem">' + _countBadges(sc) + '</div>'
+      + '<div>' + stackLines + '</div>'
+      + '</div>';
   });
   html += '</div>';
 
   // ─────────────────────────────────────────────────
-  // OPTION 3: Hardware × Model coverage matrix
+  // OPTION 3: Hardware × Model Matrix
   // ─────────────────────────────────────────────────
-  html += _sectionHdr(3, 'Hardware × Model Matrix', 'Which models have been tested on which hardware — empty = untested combination');
+  html += _sectionHdr(3, 'Hardware × Model Matrix', 'Full status breakdown per model × hardware — shows count, progress bar, and frameworks tested');
 
   html += '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:0.8rem">';
-  html += '<thead><tr><th style="padding:6px 12px;text-align:left;border-bottom:2px solid var(--border);color:var(--text-muted);font-weight:600;min-width:160px">Model</th>';
+  html += '<thead><tr>'
+    + '<th style="padding:8px 12px;text-align:left;border-bottom:2px solid ' + C_PUB + ';color:var(--text-muted);font-weight:600;min-width:160px">Model</th>';
   hardwares.forEach(function(hw) {
-    html += '<th style="padding:6px 14px;text-align:center;border-bottom:2px solid var(--border);color:var(--text-muted);font-weight:600;white-space:nowrap">' + hw + '</th>';
+    html += '<th style="padding:8px 14px;text-align:center;border-bottom:2px solid ' + C_PUB + ';color:var(--text-muted);font-weight:600;white-space:nowrap">' + hw + '</th>';
   });
   html += '</tr></thead><tbody>';
   models.forEach(function(m, i) {
@@ -571,32 +625,41 @@ function buildSummary() {
     var hwRows = {};
     mr.forEach(function(r){ if(!hwRows[r.hardware]) hwRows[r.hardware]=[]; hwRows[r.hardware].push(r); });
     html += '<tr style="border-bottom:1px solid var(--border);background:' + (i%2?'var(--bg-row)':'transparent') + '">';
-    html += '<td style="padding:6px 12px;font-weight:500;color:var(--text)">' + m + '</td>';
+    html += '<td style="padding:8px 12px;font-weight:600;color:var(--text)">' + m + '</td>';
     hardwares.forEach(function(hw) {
       var hwR = hwRows[hw] || [];
       if (!hwR.length) {
-        html += '<td style="padding:6px 14px;text-align:center;color:var(--border)">—</td>';
+        html += '<td style="padding:8px 14px;text-align:center;color:#333;font-size:1rem">—</td>';
       } else {
         var sc2 = _statusCounts(hwR);
-        var c = sc2.pub === hwR.length ? 'var(--green)' : sc2.pub > 0 ? 'var(--green)' : sc2.fly > 0 ? 'var(--blue)' : sc2.cfg > 0 ? 'var(--amber)' : '#666';
-        var lbl = sc2.pub === hwR.length ? '✓' : hwR.length;
-        html += '<td style="padding:6px 14px;text-align:center"><span style="display:inline-block;width:28px;height:28px;border-radius:50%;background:' + c + '22;border:2px solid ' + c + ';color:' + c + ';font-size:0.75rem;font-weight:700;line-height:24px;text-align:center">' + lbl + '</span></td>';
+        var allPub = sc2.pub === hwR.length;
+        var borderC = allPub ? C_PUB : sc2.fly > 0 ? C_FLY : sc2.cfg > 0 ? C_CFG : '#333';
+        var fws = {};
+        hwR.forEach(function(r){ if(r.framework) fws[r.framework]=true; });
+        var fwStr = Object.keys(fws).join(', ');
+        html += '<td style="padding:5px 10px;text-align:center">'
+          + '<div style="display:inline-block;min-width:72px;padding:5px 7px;border-radius:5px;border:1px solid ' + borderC + ';background:' + borderC + '1a;text-align:left">'
+          + '<div style="font-size:0.7rem;margin-bottom:4px">' + _countBadges(sc2) + '</div>'
+          + _stackBar(sc2, 5, 2)
+          + (fwStr ? '<div style="font-size:0.62rem;color:#555;margin-top:3px;white-space:nowrap">' + fwStr + '</div>' : '')
+          + '</div></td>';
       }
     });
     html += '</tr>';
   });
   html += '</tbody></table></div>';
+  html += _legend();
 
   // ─────────────────────────────────────────────────
-  // OPTION 4: NV vs AMD head-to-head TPS comparison
+  // OPTION 4: NV vs AMD Head-to-Head
   // ─────────────────────────────────────────────────
-  html += _sectionHdr(4, 'NV vs AMD — Head-to-Head', 'Published workloads with both NV and AMD TPS — sorted worst NV gap first');
+  html += _sectionHdr(4, 'NV vs AMD — Head-to-Head', 'TPS comparison for all workloads with measurement data — sorted worst NV gap first');
 
   var competing = rows.filter(function(r){ return r.nv_tps != null && r.amd_tps != null; })
     .sort(function(a,b){
       var ga = a.gap_pct != null ? a.gap_pct : 0;
       var gb = b.gap_pct != null ? b.gap_pct : 0;
-      return ga - gb; // worst NV gap (most negative) first
+      return ga - gb;
     });
 
   if (!competing.length) {
@@ -605,36 +668,34 @@ function buildSummary() {
     var maxTps = Math.max.apply(null, competing.map(function(r){ return Math.max(r.nv_tps||0, r.amd_tps||0); }).concat([1]));
     html += '<div style="max-width:760px">';
     html += '<div style="display:flex;gap:1.5rem;font-size:0.72rem;color:var(--text-muted);margin-bottom:0.9rem">'
-      + '<span><span style="display:inline-block;width:14px;height:4px;background:#76b900;border-radius:2px;margin-right:5px;vertical-align:middle"></span>NVIDIA TPS</span>'
-      + '<span><span style="display:inline-block;width:14px;height:4px;background:#6b7280;border-radius:2px;margin-right:5px;vertical-align:middle"></span>AMD TPS</span>'
+      + '<span><span style="display:inline-block;width:14px;height:4px;background:' + C_PUB + ';border-radius:2px;margin-right:5px;vertical-align:middle"></span>NVIDIA</span>'
+      + '<span><span style="display:inline-block;width:14px;height:4px;background:#6b7280;border-radius:2px;margin-right:5px;vertical-align:middle"></span>AMD</span>'
       + '</div>';
     competing.forEach(function(r) {
       var nvW  = Math.round((r.nv_tps  / maxTps) * 100);
       var amdW = Math.round((r.amd_tps / maxTps) * 100);
       var gapPct = r.gap_pct != null ? Math.round(r.gap_pct * 100) : null;
       var nvAhead = gapPct != null && gapPct >= 0;
-      var gapColor = nvAhead ? '#76b900' : '#f87171';
+      var gapColor = nvAhead ? C_PUB : '#f87171';
       var gapLabel = gapPct != null ? (nvAhead ? 'NV +' + Math.abs(gapPct) + '%' : 'AMD +' + Math.abs(gapPct) + '%') : '—';
       var descStr = [r.hardware, r.framework, r.precision, r.scenario, r.seqlens].filter(Boolean).join(' · ');
-      html += '<div style="margin-bottom:0.7rem;padding:0.75rem 1rem;border-radius:6px;background:var(--bg-card);border:1px solid ' + (nvAhead ? 'var(--border)' : 'rgba(248,113,113,0.25)') + '">'
-        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.35rem">'
-        + '<div><span style="font-size:0.84rem;font-weight:600;color:var(--text)">' + (r.model||'?') + '</span>'
+      html += '<div style="margin-bottom:0.7rem;padding:0.8rem 1rem;border-radius:6px;background:var(--bg-card);border:1px solid ' + (nvAhead ? 'var(--border)' : 'rgba(248,113,113,0.2)') + '">'
+        + '<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:0.4rem">'
+        + '<div><span style="font-size:0.84rem;font-weight:700;color:var(--text)">' + (r.model||'?') + '</span>'
         + '<span style="font-size:0.73rem;color:var(--text-muted);margin-left:0.5rem">' + descStr + '</span></div>'
-        + '<span class="font-metric" style="font-size:0.88rem;font-weight:700;color:' + gapColor + '">' + gapLabel + '</span>'
+        + '<span class="font-metric" style="font-size:0.9rem;font-weight:700;color:' + gapColor + ';flex-shrink:0;margin-left:0.75rem">' + gapLabel + '</span>'
         + '</div>'
-        + '<div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.25rem">'
-        + '<span style="width:32px;font-size:0.68rem;color:var(--text-label);text-align:right">NV</span>'
-        + '<div style="flex:1;background:#1a1c20;border-radius:3px;height:10px">'
-        + '<div style="width:' + nvW + '%;background:#76b900;border-radius:3px;height:100%"></div>'
-        + '</div>'
-        + '<span style="width:68px;text-align:right;font-size:0.73rem;color:var(--text-muted);font-family:Rajdhani,sans-serif">' + Math.round(r.nv_tps) + ' tok/s</span>'
+        + '<div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.3rem">'
+        + '<span style="width:36px;font-size:0.68rem;color:var(--text-label);text-align:right;font-weight:600">NV</span>'
+        + '<div style="flex:1;background:#151515;border-radius:3px;height:11px">'
+        + '<div style="width:' + nvW + '%;background:' + C_PUB + ';border-radius:3px;height:100%"></div></div>'
+        + '<span class="font-metric" style="width:72px;text-align:right;font-size:0.8rem;color:var(--text)">' + Math.round(r.nv_tps).toLocaleString() + ' t/s</span>'
         + '</div>'
         + '<div style="display:flex;align-items:center;gap:0.6rem">'
-        + '<span style="width:32px;font-size:0.68rem;color:var(--text-label);text-align:right">AMD</span>'
-        + '<div style="flex:1;background:#1a1c20;border-radius:3px;height:10px">'
-        + '<div style="width:' + amdW + '%;background:#6b7280;border-radius:3px;height:100%"></div>'
-        + '</div>'
-        + '<span style="width:68px;text-align:right;font-size:0.73rem;color:var(--text-muted);font-family:Rajdhani,sans-serif">' + Math.round(r.amd_tps) + ' tok/s</span>'
+        + '<span style="width:36px;font-size:0.68rem;color:var(--text-label);text-align:right">AMD</span>'
+        + '<div style="flex:1;background:#151515;border-radius:3px;height:11px">'
+        + '<div style="width:' + amdW + '%;background:#6b7280;border-radius:3px;height:100%"></div></div>'
+        + '<span class="font-metric" style="width:72px;text-align:right;font-size:0.8rem;color:var(--text-muted)">' + Math.round(r.amd_tps).toLocaleString() + ' t/s</span>'
         + '</div>'
         + '</div>';
     });
@@ -642,53 +703,61 @@ function buildSummary() {
   }
 
   // ─────────────────────────────────────────────────
-  // OPTION 5: Effort allocation — are we over-indexed anywhere?
+  // OPTION 5: Effort Allocation
   // ─────────────────────────────────────────────────
-  html += _sectionHdr(5, 'Effort Allocation', 'Workload count per model — wide bars on not-started may signal over-commitment');
+  html += _sectionHdr(5, 'Effort Allocation', 'Workloads per model with per-hardware breakdown — identify over-commitment and idle hardware');
 
   var maxTotal = Math.max.apply(null, models.map(function(m){ return modelCount[m]; }).concat([1]));
-  html += '<div style="max-width:680px">';
+  html += '<div style="max-width:820px">';
   models.forEach(function(m) {
     var mr = modelRows[m] || [];
     var total = mr.length;
     var sc = _statusCounts(mr);
-    // Segments as proportional widths of the full bar
-    var pubs = sc.pub/total*100, flys = sc.fly/total*100, cfgs = sc.cfg/total*100, nss = sc.ns/total*100;
-    var barPct = Math.max(2, Math.round(total/maxTotal*100));
-    html += '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.55rem">'
-      + '<div style="width:155px;text-align:right;font-size:0.8rem;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + m + '</div>'
-      + '<div style="width:' + barPct + '%;max-width:calc(100% - 250px);min-width:4px;display:flex;height:18px;border-radius:4px;overflow:hidden;border:1px solid var(--border)">'
-      + (pubs > 0 ? '<div style="flex:' + pubs + ';background:var(--green)"></div>' : '')
-      + (flys > 0 ? '<div style="flex:' + flys + ';background:var(--blue)"></div>' : '')
-      + (cfgs > 0 ? '<div style="flex:' + cfgs + ';background:var(--amber)"></div>' : '')
-      + (nss  > 0 ? '<div style="flex:' + nss  + ';background:#3a3a3a"></div>' : '')
+    var barPct = Math.max(3, Math.round(total/maxTotal*100));
+    var warn = sc.ns > total*0.6;
+
+    // Per-hardware breakdown
+    var hwMap = {};
+    mr.forEach(function(r) {
+      var hw = r.hardware || '?';
+      if (!hwMap[hw]) hwMap[hw] = [];
+      hwMap[hw].push(r);
+    });
+
+    var hwLines = Object.keys(hwMap).sort().map(function(hw) {
+      var hr = hwMap[hw];
+      var hsc = _statusCounts(hr);
+      return '<div style="display:flex;align-items:center;gap:0.5rem">'
+        + '<span style="font-size:0.68rem;color:var(--text-label);width:76px;flex-shrink:0;text-align:right">' + hw + '</span>'
+        + '<div style="width:90px;flex-shrink:0">' + _stackBar(hsc, 6, 2) + '</div>'
+        + '<span style="font-size:0.68rem">' + _countBadges(hsc) + '</span>'
+        + '</div>';
+    }).join('');
+
+    html += '<div style="margin-bottom:0.85rem;padding:0.8rem 1rem;border-radius:6px;background:var(--bg-card);border:1px solid ' + (warn?'rgba(248,113,113,0.2)':'var(--border)') + '">'
+      + '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.55rem">'
+      + '<div style="width:130px;text-align:right;font-size:0.84rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0">' + m + '</div>'
+      + '<div style="flex:1;min-width:0"><div style="width:' + barPct + '%;min-width:4px">' + _stackBar(sc, 14, 4) + '</div></div>'
+      + '<div style="font-size:0.72rem;color:var(--text-muted);flex-shrink:0;text-align:right">'
+      + total + ' wl' + (warn ? '&nbsp;&nbsp;<span style="color:#f87171">⚠ ' + sc.ns + ' idle</span>' : '')
       + '</div>'
-      + '<div style="font-size:0.72rem;color:var(--text-muted);white-space:nowrap">' + total + ' wl'
-      + (sc.ns > total*0.6 ? '<span style="color:var(--amber);margin-left:4px">⚠ ' + sc.ns + ' not started</span>' : '')
       + '</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:0.4rem 1.25rem;margin-left:138px">' + hwLines + '</div>'
       + '</div>';
   });
   html += '</div>';
-  // Legend
-  html += '<div style="display:flex;gap:1rem;margin-top:0.5rem;font-size:0.72rem;color:var(--text-muted)">'
-    + '<span><span style="display:inline-block;width:10px;height:10px;background:var(--green);border-radius:2px;margin-right:3px"></span>published</span>'
-    + '<span><span style="display:inline-block;width:10px;height:10px;background:var(--blue);border-radius:2px;margin-right:3px"></span>in flight</span>'
-    + '<span><span style="display:inline-block;width:10px;height:10px;background:var(--amber);border-radius:2px;margin-right:3px"></span>config search</span>'
-    + '<span><span style="display:inline-block;width:10px;height:10px;background:#3a3a3a;border-radius:2px;margin-right:3px"></span>not started</span>'
-    + '</div>';
+  html += _legend();
 
   // ─────────────────────────────────────────────────
-  // OPTION 6: Seqlen × Model — what context ranges have any data at all?
+  // OPTION 6: Seqlen × Model Coverage
   // ─────────────────────────────────────────────────
-  html += _sectionHdr(6, 'Seqlen × Model Coverage', 'Which context lengths have ANY data per model — spot the swiss cheese');
+  html += _sectionHdr(6, 'Seqlen × Model Coverage', 'Status breakdown in every model × context-length cell — find the gaps and partial coverage');
 
-  // Collect all unique seqlens globally, sorted by numeric value
   var allSeqlens = [];
   var allSeqSet = {};
   rows.forEach(function(r){ if(r.seqlens && !allSeqSet[r.seqlens]){ allSeqSet[r.seqlens]=true; allSeqlens.push(r.seqlens); } });
   allSeqlens.sort(function(a,b){ return _seqK(a)-_seqK(b); });
 
-  // Lookup: model+seqlen → rows
   var slLookup = {};
   rows.forEach(function(r){
     var key = (r.model||'')+'|||'+(r.seqlens||'');
@@ -697,31 +766,39 @@ function buildSummary() {
   });
 
   html += '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:0.78rem">';
-  html += '<thead><tr><th style="padding:5px 10px;text-align:left;border-bottom:2px solid var(--border);color:var(--text-muted);font-weight:600;min-width:150px;position:sticky;left:0;background:var(--bg)">Model</th>';
+  html += '<thead><tr>'
+    + '<th style="padding:6px 12px;text-align:left;border-bottom:2px solid ' + C_PUB + ';color:var(--text-muted);font-weight:600;min-width:150px;position:sticky;left:0;background:var(--bg)">Model</th>';
   allSeqlens.forEach(function(sl) {
-    html += '<th style="padding:5px 10px;text-align:center;border-bottom:2px solid var(--border);color:var(--text-muted);font-weight:600;white-space:nowrap;font-size:0.72rem">' + sl + '</th>';
+    html += '<th style="padding:6px 12px;text-align:center;border-bottom:2px solid ' + C_PUB + ';color:var(--text-muted);font-weight:600;white-space:nowrap;font-size:0.72rem">' + sl + '</th>';
   });
   html += '</tr></thead><tbody>';
   models.forEach(function(m, i) {
-    html += '<tr style="border-bottom:1px solid var(--border);background:' + (i%2?'var(--bg-row)':'transparent') + '">';
-    html += '<td style="padding:5px 10px;font-weight:500;color:var(--text);position:sticky;left:0;background:' + (i%2?'var(--bg-row)':'var(--bg)') + '">' + m + '</td>';
+    var rowBg = i%2 ? 'var(--bg-row)' : 'transparent';
+    html += '<tr style="border-bottom:1px solid var(--border);background:' + rowBg + '">';
+    html += '<td style="padding:7px 12px;font-weight:600;color:var(--text);position:sticky;left:0;background:' + (i%2?'var(--bg-row)':'var(--bg)') + '">' + m + '</td>';
     allSeqlens.forEach(function(sl) {
       var cr = slLookup[(m)+'|||'+(sl)] || [];
       if (!cr.length) {
-        html += '<td style="padding:5px 10px;text-align:center;color:var(--border);font-size:0.9rem">·</td>';
+        html += '<td style="padding:6px 12px;text-align:center;color:#2e2e2e;font-size:1rem">·</td>';
       } else {
         var sc2 = _statusCounts(cr);
-        var c = sc2.pub===cr.length?'var(--green)': sc2.fly>0?'var(--blue)': sc2.cfg>0?'var(--amber)':'#666';
-        html += '<td style="padding:5px 10px;text-align:center">'
-          + '<div style="width:32px;height:32px;border-radius:6px;background:'+c+'22;border:1px solid '+c+';margin:auto;display:flex;align-items:center;justify-content:center">'
-          + '<span style="font-size:0.72rem;font-weight:700;color:'+c+'">' + cr.length + '</span>'
+        var borderC = sc2.pub===cr.length ? C_PUB : sc2.fly>0 ? C_FLY : sc2.cfg>0 ? C_CFG : '#333';
+        var parts = [];
+        if (sc2.pub) parts.push('<div style="color:' + C_PUB  + ';font-size:0.65rem">✓ ' + sc2.pub + '</div>');
+        if (sc2.fly) parts.push('<div style="color:' + CT_FLY + ';font-size:0.65rem">⟳ ' + sc2.fly + '</div>');
+        if (sc2.cfg) parts.push('<div style="color:' + CT_CFG + ';font-size:0.65rem">⚙ ' + sc2.cfg + '</div>');
+        if (sc2.ns)  parts.push('<div style="color:#484848;font-size:0.65rem">○ ' + sc2.ns  + '</div>');
+        html += '<td style="padding:4px 8px;text-align:center">'
+          + '<div style="display:inline-block;min-width:42px;padding:4px 6px;border-radius:5px;border:1px solid ' + borderC + ';background:' + borderC + '18">'
+          + _stackBar(sc2, 4, 2)
+          + '<div style="margin-top:3px;line-height:1.5">' + parts.join('') + '</div>'
           + '</div></td>';
       }
     });
     html += '</tr>';
   });
   html += '</tbody></table></div>'
-    + '<div style="font-size:0.72rem;color:var(--text-label);margin-top:0.5rem">Number = workload count. · = no data at all for this combination.</div>';
+    + '<div style="font-size:0.72rem;color:var(--text-label);margin-top:0.6rem">· = no data. ✓ published · ⟳ in flight · ⚙ config search · ○ not started</div>';
 
   document.getElementById('summary-content').innerHTML = html;
 }
