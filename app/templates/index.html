@@ -12,6 +12,10 @@
           style="padding:6px 16px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text-muted);font-size:0.85rem;cursor:pointer;margin-bottom:-1px">
     Summary
   </button>
+  <button id="tab-btn-table" onclick="switchTab('table')"
+          style="padding:6px 16px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text-muted);font-size:0.85rem;cursor:pointer;margin-bottom:-1px">
+    Table
+  </button>
 </div>
 
 <div id="tab-tree">
@@ -184,6 +188,11 @@
   <div id="summary-content"></div>
 </div>
 
+{# ── Table tab ── #}
+<div id="tab-table" style="display:none">
+  <div id="table-content"></div>
+</div>
+
 {# ── Request Modal ── #}
 <div id="request-modal"
      style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:200;align-items:center;justify-content:center">
@@ -259,8 +268,9 @@ var _allRows = {{ rows_json | safe }};
 
 // ── Tab switching ──
 var _summaryBuilt = false;
+var _tableBuilt = false;
 function switchTab(tab) {
-  ['tree','summary'].forEach(function(t) {
+  ['tree','summary','table'].forEach(function(t) {
     var el = document.getElementById('tab-' + t);
     var btn = document.getElementById('tab-btn-' + t);
     if (el) el.style.display = (t === tab) ? 'block' : 'none';
@@ -271,6 +281,143 @@ function switchTab(tab) {
     }
   });
   if (tab === 'summary' && !_summaryBuilt) { buildSummary(); _summaryBuilt = true; }
+  if (tab === 'table'   && !_tableBuilt)   { buildTable();   _tableBuilt   = true; }
+}
+
+// ── Excel-style table ──
+var _tableRows = null;
+var _tableSortCol = null;
+var _tableSortDir = 1;
+var _tableFilters = {};
+
+var _tableCols = [
+  {key:'model',     label:'Model'},
+  {key:'hardware',  label:'Hardware'},
+  {key:'framework', label:'Framework'},
+  {key:'precision', label:'Precision'},
+  {key:'scenario',  label:'Scenario'},
+  {key:'seqlens',   label:'Seqlens'},
+  {key:'status',    label:'Status'},
+  {key:'pic',       label:'PIC'},
+  {key:'priority',  label:'Priority'},
+  {key:'nv_tps',    label:'NV TPS'},
+  {key:'amd_tps',   label:'AMD TPS'},
+  {key:'gap_pct',   label:'Gap %'},
+];
+
+function buildTable() {
+  _tableRows = _allRows.slice();
+  renderTable();
+}
+
+function renderTable() {
+  var rows = _tableRows.slice();
+
+  // Apply column filters
+  Object.keys(_tableFilters).forEach(function(k) {
+    var q = (_tableFilters[k] || '').toLowerCase();
+    if (!q) return;
+    rows = rows.filter(function(r) {
+      var v = r[k] == null ? '' : String(r[k]);
+      return v.toLowerCase().includes(q);
+    });
+  });
+
+  // Apply sort
+  if (_tableSortCol) {
+    rows.sort(function(a, b) {
+      var av = a[_tableSortCol] == null ? '' : a[_tableSortCol];
+      var bv = b[_tableSortCol] == null ? '' : b[_tableSortCol];
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * _tableSortDir;
+      return String(av).localeCompare(String(bv)) * _tableSortDir;
+    });
+  }
+
+  var STATUS_COLOR = {
+    'published': 'var(--green)',
+    'internal_review': 'var(--blue)',
+    'accuracy_gate': 'var(--blue)',
+    'config_search': 'var(--amber)',
+    'not_started': '#666',
+  };
+
+  var html = '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem">'
+    + '<span style="font-size:0.78rem;color:var(--text-muted)">' + rows.length + ' rows</span>'
+    + '<button onclick="clearTableFilters()" style="font-size:0.75rem;color:var(--text-muted);background:none;border:none;cursor:pointer;text-decoration:underline">Clear filters</button>'
+    + '</div>';
+
+  html += '<div style="overflow:auto;max-height:calc(100vh - 260px)">'
+    + '<table style="border-collapse:collapse;font-size:0.8rem;width:100%"><thead>';
+
+  // Sort header row
+  html += '<tr style="position:sticky;top:0;z-index:2">';
+  _tableCols.forEach(function(col) {
+    var isSort = _tableSortCol === col.key;
+    var arrow = isSort ? (_tableSortDir === 1 ? ' ↑' : ' ↓') : '';
+    html += '<th onclick="tableSort(\'' + col.key + '\')" style="padding:6px 10px;background:var(--bg-card);border-bottom:2px solid var(--border);text-align:left;cursor:pointer;white-space:nowrap;color:' + (isSort ? 'var(--green)' : 'var(--text-muted)') + ';font-size:0.72rem;font-weight:600;user-select:none">'
+      + col.label + arrow + '</th>';
+  });
+  html += '</tr>';
+
+  // Filter input row
+  html += '<tr style="position:sticky;top:31px;z-index:2">';
+  _tableCols.forEach(function(col) {
+    var val = _tableFilters[col.key] || '';
+    html += '<th style="padding:3px 4px;background:var(--bg-card);border-bottom:1px solid var(--border)">'
+      + '<input oninput="setTableFilter(\'' + col.key + '\', this.value)" value="' + val + '" placeholder="filter…"'
+      + ' style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:2px 5px;color:var(--text);font-size:0.72rem">'
+      + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+
+  // Data rows
+  rows.forEach(function(r, i) {
+    var bg = i % 2 === 0 ? 'transparent' : 'var(--bg-row)';
+    html += '<tr style="background:' + bg + ';border-bottom:1px solid var(--border)">';
+    _tableCols.forEach(function(col) {
+      var v = r[col.key];
+      var display = v == null ? '' : v;
+      var style = 'padding:5px 10px;white-space:nowrap;color:var(--text)';
+
+      if (col.key === 'status' && v) {
+        var c = STATUS_COLOR[v] || '#666';
+        display = '<span style="color:' + c + '">' + v.replace(/_/g,' ') + '</span>';
+      } else if (col.key === 'gap_pct' && v != null) {
+        var pct = (v * 100).toFixed(0);
+        var c = v >= 0 ? 'var(--green)' : 'var(--red)';
+        display = '<span style="color:' + c + '">' + (v >= 0 ? '+' : '') + pct + '%</span>';
+      } else if ((col.key === 'nv_tps' || col.key === 'amd_tps') && v != null) {
+        display = Math.round(v).toLocaleString();
+        style += ';font-family:Rajdhani,sans-serif;text-align:right';
+      } else if (col.key === 'priority' && v) {
+        display = 'P' + v;
+      }
+
+      html += '<td style="' + style + '">' + display + '</td>';
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  document.getElementById('table-content').innerHTML = html;
+}
+
+function tableSort(col) {
+  if (_tableSortCol === col) _tableSortDir *= -1;
+  else { _tableSortCol = col; _tableSortDir = 1; }
+  renderTable();
+}
+
+function setTableFilter(col, val) {
+  _tableFilters[col] = val;
+  renderTable();
+}
+
+function clearTableFilters() {
+  _tableFilters = {};
+  _tableSortCol = null;
+  _tableSortDir = 1;
+  renderTable();
 }
 
 // ── Summary view ──
@@ -367,18 +514,21 @@ function buildSummary() {
       else if (cfg > 0)                 { bg = 'rgba(251,191,36,0.12)'; border = 'var(--amber)'; textColor = 'var(--amber)'; }
       else                              { bg = 'rgba(80,80,80,0.12)'; border = '#555'; textColor = '#888'; }
 
-      // Dots representing each workload by status
-      var dots = cellRows.map(function(r) {
-        var c = r.status === 'published' ? 'var(--green)'
-          : (r.status === 'internal_review' || r.status === 'accuracy_gate') ? 'var(--blue)'
-          : r.status === 'config_search' ? 'var(--amber)' : '#555';
-        return '<span title="' + (r.scenario || '') + ' ' + (r.framework || '') + ' ' + r.status + '" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + c + ';margin:1px"></span>';
-      }).join('');
+      // Status lines — human-readable breakdown
+      var lines = [];
+      if (pub) lines.push('<span style="color:var(--green)">' + pub + ' published</span>');
+      if (fly) lines.push('<span style="color:var(--blue)">' + fly + ' in flight</span>');
+      if (cfg) lines.push('<span style="color:var(--amber)">' + cfg + ' cfg search</span>');
+      if (ns)  lines.push('<span style="color:#888">' + ns + ' not started</span>');
+      // Scenarios covered
+      var scenSet = {};
+      cellRows.forEach(function(r) { if (r.scenario) scenSet[r.scenario] = true; });
+      var scenStr = Object.keys(scenSet).join(', ');
 
-      html += '<td class="summary-cell" data-col="' + ci + '" style="padding:5px 10px;text-align:center">'
-        + '<div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px;padding:4px 8px;border-radius:5px;background:' + bg + ';border:1px solid ' + border + '">'
-        + '<div>' + dots + '</div>'
-        + '<div style="font-size:0.68rem;color:' + textColor + ';font-weight:600">' + cellRows.length + '</div>'
+      html += '<td class="summary-cell" data-col="' + ci + '" style="padding:5px 10px;text-align:left">'
+        + '<div style="display:inline-block;padding:5px 9px;border-radius:5px;background:' + bg + ';border:1px solid ' + border + ';min-width:90px">'
+        + '<div style="font-size:0.72rem;line-height:1.5">' + lines.join('<br>') + '</div>'
+        + (scenStr ? '<div style="font-size:0.65rem;color:var(--text-label);margin-top:2px">' + scenStr + '</div>' : '')
         + '</div></td>';
     });
 
