@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -90,6 +90,8 @@ def update_request(
         req.status = body.status
     if body.pic is not None:
         req.pic = body.pic
+    if body.eta is not None:
+        req.eta = datetime.fromisoformat(body.eta) if body.eta else None
 
     req.updated_at = datetime.now(timezone.utc)
     db.commit()

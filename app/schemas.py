@@ -156,3 +156,4 @@ class RequestCreate(BaseModel):
 class RequestUpdate(BaseModel):
     status: Optional[str] = None
     pic:    Optional[str] = None
+    eta:    Optional[str] = None  # ISO date string YYYY-MM-DD

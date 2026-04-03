@@ -144,6 +144,7 @@ class Request(Base):
     notes        = Column(Text)
     status       = Column(Text, nullable=False, default="new")
     pic          = Column(Text)
+    eta          = Column(DateTime)
     submitted_by = Column(Text)
     created_at   = Column(DateTime, default=_now)
     updated_at   = Column(DateTime, default=_now, onupdate=_now)
