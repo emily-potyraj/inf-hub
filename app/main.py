@@ -178,23 +178,28 @@ def index(
             for v in [r.model, r.hardware, r.framework, r.precision, r.scenario, r.seqlens, r.pic, r.notes]
         )]
 
-    # Sort: priority asc (None last), then alphabetically
+    # Sort: priority asc (None last), then model → hardware → seqlens → precision → scenario → framework
     rows_sorted = sorted(rows, key=lambda r: (
         r.priority if r.priority is not None else 9999,
-        r.model or "", r.hardware or "", r.framework or "", r.precision or "", r.scenario or ""
+        r.model or "", r.hardware or "", r.seqlens or "", r.precision or "", r.scenario or "", r.framework or ""
     ))
 
-    # Build tree: model → stack_key → [rows]
-    # stack_key = (hardware, framework, precision)
+    # Build tree: model → hardware (chip) → seqlens → precision → [rows]
     tree: OrderedDict = OrderedDict()
     for r in rows_sorted:
         m = r.model or "Unknown"
-        stack = (r.hardware or "?", r.framework or "?", r.precision or "?")
+        hw = r.hardware or "?"
+        sl = r.seqlens or "—"
+        prec = r.precision or "?"
         if m not in tree:
             tree[m] = OrderedDict()
-        if stack not in tree[m]:
-            tree[m][stack] = []
-        tree[m][stack].append(r)
+        if hw not in tree[m]:
+            tree[m][hw] = OrderedDict()
+        if sl not in tree[m][hw]:
+            tree[m][hw][sl] = OrderedDict()
+        if prec not in tree[m][hw][sl]:
+            tree[m][hw][sl][prec] = []
+        tree[m][hw][sl][prec].append(r)
 
     # Serialize all rows as JSON for client-side matrix + export
     rows_json = _json.dumps([{
