@@ -235,8 +235,7 @@ function switchTab(tab) {
   if (tab === 'summary' && !_summaryBuilt) { buildSummary(); _summaryBuilt = true; }
   if (tab === 'table'   && !_tableBuilt)   { buildTable();   _tableBuilt   = true; }
 }
-// Summary is the default tab — build it on load
-switchTab('table');
+// Default tab initialized after all variables are defined (see bottom of script)
 
 // ── Excel-style table ──
 var _tableRows = null;
@@ -800,6 +799,8 @@ function _dl(content, filename, mime) {
   document.body.removeChild(a);
   URL.revokeObjectURL(a.href);
 }
+
+switchTab('table');
 </script>
 
 {% endblock %}
