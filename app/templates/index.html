@@ -433,11 +433,14 @@ function _seqK(sl) {
 }
 function _fmtSeq(n) { return n >= 1000 ? (n/1000)+'k' : n; }
 function _sectionHdr(n, title, desc) {
-  return '<div style="display:flex;align-items:baseline;gap:0.75rem;margin:2rem 0 0.5rem">'
-    + '<span style="font-size:0.65rem;font-weight:700;color:var(--text-label);text-transform:uppercase;letter-spacing:0.1em;background:var(--bg-card);border:1px solid var(--border);border-radius:3px;padding:2px 6px">Option ' + n + '</span>'
-    + '<span class="font-metric font-semibold" style="font-size:0.95rem;color:var(--text)">' + title + '</span>'
+  var topMargin = n === 1 ? '0.5rem' : '3.5rem';
+  return '<div style="margin-top:' + topMargin + ';margin-bottom:1.5rem">'
+    + '<div style="display:flex;align-items:center;gap:0.85rem;padding:0.8rem 1.1rem;background:rgba(118,185,0,0.07);border-left:3px solid #76b900;border-radius:0 6px 6px 0">'
+    + '<span style="font-size:0.63rem;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:0.1em;background:#76b900;border-radius:3px;padding:2px 9px;flex-shrink:0">Option ' + n + '</span>'
+    + '<span class="font-metric font-semibold" style="font-size:0.97rem;color:var(--text)">' + title + '</span>'
     + '<span style="font-size:0.78rem;color:var(--text-muted)">' + desc + '</span>'
-    + '</div><div style="border-top:1px solid var(--border);margin-bottom:1rem"></div>';
+    + '</div>'
+    + '</div>';
 }
 function _statusCounts(arr) {
   return {
@@ -585,29 +588,54 @@ function buildSummary() {
   html += '</tbody></table></div>';
 
   // ─────────────────────────────────────────────────
-  // OPTION 4: Performance watch list — AMD is winning here
+  // OPTION 4: NV vs AMD head-to-head TPS comparison
   // ─────────────────────────────────────────────────
-  html += _sectionHdr(4, 'Performance Watch List', 'Workloads where AMD is ahead — sorted by gap size');
+  html += _sectionHdr(4, 'NV vs AMD — Head-to-Head', 'Published workloads with both NV and AMD TPS — sorted worst NV gap first');
 
-  var behind = rows.filter(function(r){ return r.gap_pct != null && r.gap_pct < 0; })
-    .sort(function(a,b){ return a.gap_pct - b.gap_pct; });
+  var competing = rows.filter(function(r){ return r.nv_tps != null && r.amd_tps != null; })
+    .sort(function(a,b){
+      var ga = a.gap_pct != null ? a.gap_pct : 0;
+      var gb = b.gap_pct != null ? b.gap_pct : 0;
+      return ga - gb; // worst NV gap (most negative) first
+    });
 
-  if (!behind.length) {
-    html += '<div style="padding:1rem 1.25rem;border-radius:8px;background:rgba(118,185,0,0.08);border:1px solid var(--green);color:var(--green);font-size:0.85rem">✓ No workloads where AMD is currently ahead</div>';
+  if (!competing.length) {
+    html += '<div style="padding:1rem 1.25rem;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);color:var(--text-muted);font-size:0.85rem">No workloads have both NV and AMD TPS data yet.</div>';
   } else {
-    html += '<div style="display:flex;flex-direction:column;gap:0.4rem;max-width:720px">';
-    behind.forEach(function(r) {
-      var pct = Math.abs(Math.round(r.gap_pct * 100));
-      var barW = Math.min(100, pct * 2);
-      html += '<div style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0.75rem;border-radius:6px;background:var(--bg-card);border:1px solid var(--border)">'
-        + '<div style="flex:1;min-width:0">'
-        + '<span style="font-size:0.82rem;font-weight:600;color:var(--text)">' + (r.model||'?') + '</span>'
-        + '<span style="font-size:0.75rem;color:var(--text-muted);margin-left:0.5rem">' + (r.hardware||'') + ' · ' + (r.framework||'') + ' · ' + (r.precision||'') + ' · ' + (r.scenario||'') + (r.seqlens?' · '+r.seqlens:'') + '</span>'
+    var maxTps = Math.max.apply(null, competing.map(function(r){ return Math.max(r.nv_tps||0, r.amd_tps||0); }).concat([1]));
+    html += '<div style="max-width:760px">';
+    html += '<div style="display:flex;gap:1.5rem;font-size:0.72rem;color:var(--text-muted);margin-bottom:0.9rem">'
+      + '<span><span style="display:inline-block;width:14px;height:4px;background:#76b900;border-radius:2px;margin-right:5px;vertical-align:middle"></span>NVIDIA TPS</span>'
+      + '<span><span style="display:inline-block;width:14px;height:4px;background:#6b7280;border-radius:2px;margin-right:5px;vertical-align:middle"></span>AMD TPS</span>'
+      + '</div>';
+    competing.forEach(function(r) {
+      var nvW  = Math.round((r.nv_tps  / maxTps) * 100);
+      var amdW = Math.round((r.amd_tps / maxTps) * 100);
+      var gapPct = r.gap_pct != null ? Math.round(r.gap_pct * 100) : null;
+      var nvAhead = gapPct != null && gapPct >= 0;
+      var gapColor = nvAhead ? '#76b900' : '#f87171';
+      var gapLabel = gapPct != null ? (nvAhead ? 'NV +' + Math.abs(gapPct) + '%' : 'AMD +' + Math.abs(gapPct) + '%') : '—';
+      var descStr = [r.hardware, r.framework, r.precision, r.scenario, r.seqlens].filter(Boolean).join(' · ');
+      html += '<div style="margin-bottom:0.7rem;padding:0.75rem 1rem;border-radius:6px;background:var(--bg-card);border:1px solid ' + (nvAhead ? 'var(--border)' : 'rgba(248,113,113,0.25)') + '">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.35rem">'
+        + '<div><span style="font-size:0.84rem;font-weight:600;color:var(--text)">' + (r.model||'?') + '</span>'
+        + '<span style="font-size:0.73rem;color:var(--text-muted);margin-left:0.5rem">' + descStr + '</span></div>'
+        + '<span class="font-metric" style="font-size:0.88rem;font-weight:700;color:' + gapColor + '">' + gapLabel + '</span>'
         + '</div>'
-        + '<div style="width:100px;background:var(--bg-row);border-radius:3px;height:8px;flex-shrink:0">'
-        + '<div style="width:' + barW + '%;background:var(--red,#f87171);border-radius:3px;height:100%"></div>'
+        + '<div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.25rem">'
+        + '<span style="width:32px;font-size:0.68rem;color:var(--text-label);text-align:right">NV</span>'
+        + '<div style="flex:1;background:#1a1c20;border-radius:3px;height:10px">'
+        + '<div style="width:' + nvW + '%;background:#76b900;border-radius:3px;height:100%"></div>'
         + '</div>'
-        + '<div style="width:60px;text-align:right;font-size:0.82rem;font-weight:700;color:#f87171;font-family:Rajdhani,sans-serif;flex-shrink:0">AMD +' + pct + '%</div>'
+        + '<span style="width:68px;text-align:right;font-size:0.73rem;color:var(--text-muted);font-family:Rajdhani,sans-serif">' + Math.round(r.nv_tps) + ' tok/s</span>'
+        + '</div>'
+        + '<div style="display:flex;align-items:center;gap:0.6rem">'
+        + '<span style="width:32px;font-size:0.68rem;color:var(--text-label);text-align:right">AMD</span>'
+        + '<div style="flex:1;background:#1a1c20;border-radius:3px;height:10px">'
+        + '<div style="width:' + amdW + '%;background:#6b7280;border-radius:3px;height:100%"></div>'
+        + '</div>'
+        + '<span style="width:68px;text-align:right;font-size:0.73rem;color:var(--text-muted);font-family:Rajdhani,sans-serif">' + Math.round(r.amd_tps) + ' tok/s</span>'
+        + '</div>'
         + '</div>';
     });
     html += '</div>';
