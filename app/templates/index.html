@@ -424,130 +424,278 @@ function clearTableFilters() {
 var _summaryModelFilter = '';
 var _summaryColFilter = '';
 
-function buildSummary() {
-  var rows = _allRows;
-
-  // Unique sorted seqlens — sort by numeric value of first token
-  var seqlenSet = {};
-  rows.forEach(function(r) { if (r.seqlens) seqlenSet[r.seqlens] = true; });
-  var seqlens = Object.keys(seqlenSet).sort(function(a, b) {
-    var na = parseInt(a) || 0, nb = parseInt(b) || 0;
-    return na - nb;
-  });
-
-  // Unique models sorted by total workload count desc (busiest first)
-  var modelCount = {};
-  rows.forEach(function(r) { modelCount[r.model] = (modelCount[r.model] || 0) + 1; });
-  var models = Object.keys(modelCount).sort(function(a, b) { return modelCount[b] - modelCount[a]; });
-
-  // Build lookup: model+seqlen → [rows]
-  var lookup = {};
-  rows.forEach(function(r) {
-    var key = (r.model || '') + '|||' + (r.seqlens || '');
-    if (!lookup[key]) lookup[key] = [];
-    lookup[key].push(r);
-  });
-
-  // Build HTML
-  var html = '';
-
-  // Legend + description
-  html += '<div class="flex items-center gap-4 mb-4" style="flex-wrap:wrap">'
-    + '<span style="font-size:0.78rem;color:var(--text-muted)">Rows sorted by workload count. Cells show status breakdown. Empty = no data.</span>'
-    + '<span class="flex gap-3" style="font-size:0.72rem;color:var(--text-muted)">'
-    + '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--green);margin-right:3px"></span>published</span>'
-    + '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--blue);margin-right:3px"></span>in flight</span>'
-    + '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--amber);margin-right:3px"></span>config search</span>'
-    + '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#444;margin-right:3px"></span>not started</span>'
-    + '</span></div>';
-
-  // Column filter row (Excel-like)
-  html += '<div style="overflow-x:auto"><table id="summary-table" style="border-collapse:collapse;font-size:0.8rem;min-width:500px">';
-  html += '<thead>';
-
-  // Row filter + column headers
-  html += '<tr style="position:sticky;top:0;z-index:2">';
-  html += '<th style="text-align:left;padding:6px 12px;background:var(--bg-card);border-bottom:2px solid var(--border);position:sticky;left:0;z-index:3;min-width:160px">'
-    + '<input id="summary-model-filter" oninput="filterSummary()" placeholder="Filter model…"'
-    + ' style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:3px 7px;color:var(--text);font-size:0.75rem">'
-    + '</th>';
-  seqlens.forEach(function(sl, i) {
-    html += '<th data-col="' + i + '" onclick="highlightCol(' + i + ')" style="padding:6px 10px;background:var(--bg-card);border-bottom:2px solid var(--border);text-align:center;cursor:pointer;min-width:100px;color:var(--text-muted);font-size:0.75rem;font-weight:600;white-space:nowrap"'
-      + ' title="Click to highlight" id="col-hdr-' + i + '">'
-      + sl + '</th>';
-  });
-  // Extra: hardware coverage column
-  html += '<th style="padding:6px 10px;background:var(--bg-card);border-bottom:2px solid var(--border);text-align:left;min-width:140px;color:var(--text-muted);font-size:0.75rem;font-weight:600">Hardware seen</th>';
-  html += '</tr></thead><tbody id="summary-tbody">';
-
-  // Data rows
-  models.forEach(function(m, mi) {
-    var rowHwSet = {};
-    rows.filter(function(r) { return r.model === m; }).forEach(function(r) { if (r.hardware) rowHwSet[r.hardware] = true; });
-    var hwList = Object.keys(rowHwSet).join(', ');
-    var total = modelCount[m];
-
-    html += '<tr class="summary-row" data-model="' + m.toLowerCase() + '" style="border-bottom:1px solid var(--border)">';
-    html += '<td style="padding:7px 12px;position:sticky;left:0;background:var(--bg);z-index:1;border-right:1px solid var(--border)">'
-      + '<div style="font-weight:600;color:var(--text);font-size:0.85rem">' + m + '</div>'
-      + '<div style="font-size:0.7rem;color:var(--text-label)">' + total + ' workload' + (total !== 1 ? 's' : '') + '</div>'
-      + '</td>';
-
-    seqlens.forEach(function(sl, ci) {
-      var key = m + '|||' + sl;
-      var cellRows = lookup[key] || [];
-      if (!cellRows.length) {
-        html += '<td class="summary-cell" data-col="' + ci + '" style="padding:5px 10px;text-align:center;color:var(--border)">—</td>';
-        return;
-      }
-      // Count by status
-      var pub = cellRows.filter(function(r) { return r.status === 'published'; }).length;
-      var fly = cellRows.filter(function(r) { return r.status === 'internal_review' || r.status === 'accuracy_gate'; }).length;
-      var cfg = cellRows.filter(function(r) { return r.status === 'config_search'; }).length;
-      var ns  = cellRows.filter(function(r) { return r.status === 'not_started'; }).length;
-
-      // Dominant color
-      var bg, border, textColor;
-      if (pub === cellRows.length)      { bg = 'rgba(118,185,0,0.15)'; border = 'var(--green)'; textColor = 'var(--green)'; }
-      else if (pub > 0)                 { bg = 'rgba(118,185,0,0.08)'; border = 'var(--green)'; textColor = 'var(--green)'; }
-      else if (fly > 0)                 { bg = 'rgba(0,180,216,0.12)'; border = 'var(--blue)'; textColor = 'var(--blue)'; }
-      else if (cfg > 0)                 { bg = 'rgba(251,191,36,0.12)'; border = 'var(--amber)'; textColor = 'var(--amber)'; }
-      else                              { bg = 'rgba(80,80,80,0.12)'; border = '#555'; textColor = '#888'; }
-
-      // Status lines — human-readable breakdown
-      var lines = [];
-      if (pub) lines.push('<span style="color:var(--green)">' + pub + ' published</span>');
-      if (fly) lines.push('<span style="color:var(--blue)">' + fly + ' in flight</span>');
-      if (cfg) lines.push('<span style="color:var(--amber)">' + cfg + ' cfg search</span>');
-      if (ns)  lines.push('<span style="color:#888">' + ns + ' not started</span>');
-      // Scenarios covered
-      var scenSet = {};
-      cellRows.forEach(function(r) { if (r.scenario) scenSet[r.scenario] = true; });
-      var scenStr = Object.keys(scenSet).join(', ');
-
-      html += '<td class="summary-cell" data-col="' + ci + '" style="padding:5px 10px;text-align:left">'
-        + '<div style="display:inline-block;padding:5px 9px;border-radius:5px;background:' + bg + ';border:1px solid ' + border + ';min-width:90px">'
-        + '<div style="font-size:0.72rem;line-height:1.5">' + lines.join('<br>') + '</div>'
-        + (scenStr ? '<div style="font-size:0.65rem;color:var(--text-label);margin-top:2px">' + scenStr + '</div>' : '')
-        + '</div></td>';
-    });
-
-    html += '<td style="padding:7px 10px;font-size:0.75rem;color:var(--text-muted)">' + (hwList || '—') + '</td>';
-    html += '</tr>';
-  });
-
-  html += '</tbody></table></div>';
-
-  document.getElementById('summary-content').innerHTML = html;
+// ── Summary helpers ──
+function _seqK(sl) {
+  if (!sl) return 0;
+  var p = sl.split('/')[0].trim().toLowerCase();
+  var m = p.match(/^([\d.]+)(k?)$/);
+  return m ? parseFloat(m[1]) * (m[2] === 'k' ? 1000 : 1) : 0;
+}
+function _fmtSeq(n) { return n >= 1000 ? (n/1000)+'k' : n; }
+function _sectionHdr(n, title, desc) {
+  return '<div style="display:flex;align-items:baseline;gap:0.75rem;margin:2rem 0 0.5rem">'
+    + '<span style="font-size:0.65rem;font-weight:700;color:var(--text-label);text-transform:uppercase;letter-spacing:0.1em;background:var(--bg-card);border:1px solid var(--border);border-radius:3px;padding:2px 6px">Option ' + n + '</span>'
+    + '<span class="font-metric font-semibold" style="font-size:0.95rem;color:var(--text)">' + title + '</span>'
+    + '<span style="font-size:0.78rem;color:var(--text-muted)">' + desc + '</span>'
+    + '</div><div style="border-top:1px solid var(--border);margin-bottom:1rem"></div>';
+}
+function _statusCounts(arr) {
+  return {
+    pub: arr.filter(function(r){return r.status==='published';}).length,
+    fly: arr.filter(function(r){return r.status==='internal_review'||r.status==='accuracy_gate';}).length,
+    cfg: arr.filter(function(r){return r.status==='config_search';}).length,
+    ns:  arr.filter(function(r){return r.status==='not_started';}).length,
+  };
 }
 
-function filterSummary() {
-  var q = (document.getElementById('summary-model-filter') || {}).value || '';
-  q = q.toLowerCase();
-  document.querySelectorAll('.summary-row').forEach(function(row) {
-    var m = row.getAttribute('data-model') || '';
-    row.style.display = (!q || m.includes(q)) ? '' : 'none';
+function buildSummary() {
+  var rows = _allRows;
+  var html = '';
+
+  // Pre-compute common lookups
+  var modelCount = {}, modelRows = {};
+  rows.forEach(function(r) {
+    var m = r.model || '?';
+    modelCount[m] = (modelCount[m] || 0) + 1;
+    if (!modelRows[m]) modelRows[m] = [];
+    modelRows[m].push(r);
   });
+  var models = Object.keys(modelCount).sort(function(a,b){ return modelCount[b]-modelCount[a]; });
+
+  var hwSet = {};
+  rows.forEach(function(r){ if(r.hardware) hwSet[r.hardware]=true; });
+  var hardwares = Object.keys(hwSet).sort();
+
+  // ─────────────────────────────────────────────────
+  // OPTION 1: Context frontier — which models have long-context data?
+  // ─────────────────────────────────────────────────
+  html += _sectionHdr(1, 'Context Frontier', 'Max seqlen tested per model — gaps reveal untested context lengths');
+
+  var modelMaxSeq = {};
+  var modelMaxSeqLabel = {};
+  var modelSeqlensAll = {};
+  rows.forEach(function(r) {
+    var m = r.model || '?';
+    var k = _seqK(r.seqlens);
+    if (!modelMaxSeq[m] || k > modelMaxSeq[m]) {
+      modelMaxSeq[m] = k;
+      modelMaxSeqLabel[m] = r.seqlens || '?';
+    }
+    if (!modelSeqlensAll[m]) modelSeqlensAll[m] = {};
+    if (r.seqlens) modelSeqlensAll[m][r.seqlens] = true;
+  });
+  var globalMax = Math.max.apply(null, Object.values(modelMaxSeq).concat([1]));
+  var modelsBySeq = models.slice().sort(function(a,b){ return (modelMaxSeq[b]||0)-(modelMaxSeq[a]||0); });
+
+  html += '<div style="max-width:700px">';
+  modelsBySeq.forEach(function(m) {
+    var maxK = modelMaxSeq[m] || 0;
+    var pct = globalMax > 0 ? Math.max(2, Math.round(maxK / globalMax * 100)) : 2;
+    var seqlensAll = Object.keys(modelSeqlensAll[m] || {}).sort(function(a,b){return _seqK(a)-_seqK(b);});
+    var sc = _statusCounts(modelRows[m] || []);
+    var barColor = sc.pub > 0 ? 'var(--green)' : sc.fly > 0 ? 'var(--blue)' : sc.cfg > 0 ? 'var(--amber)' : '#555';
+    html += '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.6rem">'
+      + '<div style="width:160px;text-align:right;font-size:0.82rem;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + m + '</div>'
+      + '<div style="flex:1;background:var(--bg-card);border-radius:4px;height:20px;border:1px solid var(--border);position:relative">'
+      + '<div style="width:' + pct + '%;background:' + barColor + ';border-radius:3px;height:100%;opacity:0.85"></div>'
+      + '</div>'
+      + '<div style="width:160px;font-size:0.75rem;color:var(--text-muted)">'
+      + '<span style="color:var(--text);font-weight:600">' + (modelMaxSeqLabel[m] || '—') + '</span>'
+      + ' · ' + seqlensAll.length + ' seqlen' + (seqlensAll.length !== 1 ? 's' : '')
+      + '</div>'
+      + '</div>';
+  });
+  html += '</div>';
+
+  // ─────────────────────────────────────────────────
+  // OPTION 2: Model coverage at a glance — who's tested, how far along?
+  // ─────────────────────────────────────────────────
+  html += _sectionHdr(2, 'Model Coverage', 'Quick status rollup per model — spot models with zero traction or all not-started');
+
+  html += '<div style="display:flex;flex-wrap:wrap;gap:0.75rem">';
+  models.forEach(function(m) {
+    var mr = modelRows[m] || [];
+    var total = mr.length;
+    var sc = _statusCounts(mr);
+    var hwSet2 = {}, fwSet = {};
+    mr.forEach(function(r){ if(r.hardware) hwSet2[r.hardware]=true; if(r.framework) fwSet[r.framework]=true; });
+    var hws = Object.keys(hwSet2).join(', ');
+    var fws = Object.keys(fwSet).join(', ');
+
+    // Stacked bar segments
+    var segments = [
+      {n: sc.pub, c: 'var(--green)'},
+      {n: sc.fly, c: 'var(--blue)'},
+      {n: sc.cfg, c: 'var(--amber)'},
+      {n: sc.ns,  c: '#444'},
+    ];
+    var barHtml = segments.map(function(s) {
+      if (!s.n) return '';
+      return '<div style="flex:' + s.n + ';background:' + s.c + ';height:6px"></div>';
+    }).join('');
+
+    var allDone = sc.pub === total;
+    var noneStarted = sc.ns === total;
+    var cardBorder = allDone ? 'var(--green)' : noneStarted ? '#444' : 'var(--border)';
+
+    html += '<div style="width:220px;padding:0.85rem 1rem;border-radius:8px;border:1px solid ' + cardBorder + ';background:var(--bg-card)">'
+      + '<div style="font-weight:700;font-size:0.88rem;color:var(--text);margin-bottom:0.5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + m + '</div>'
+      + '<div style="display:flex;border-radius:3px;overflow:hidden;height:6px;margin-bottom:0.5rem;background:var(--border)">' + barHtml + '</div>'
+      + '<div style="font-size:0.7rem;color:var(--text-muted);line-height:1.7">'
+      + (sc.pub ? '<span style="color:var(--green)">✓ ' + sc.pub + ' pub</span>  ' : '')
+      + (sc.fly ? '<span style="color:var(--blue)">⟳ ' + sc.fly + ' fly</span>  ' : '')
+      + (sc.cfg ? '<span style="color:var(--amber)">⚙ ' + sc.cfg + ' cfg</span>  ' : '')
+      + (sc.ns  ? '<span style="color:#666">· ' + sc.ns + ' not started</span>' : '')
+      + '<br><span style="color:var(--text-label)">' + hws + '</span>'
+      + (fws ? '<br><span style="color:var(--text-label)">' + fws + '</span>' : '')
+      + '</div></div>';
+  });
+  html += '</div>';
+
+  // ─────────────────────────────────────────────────
+  // OPTION 3: Hardware × Model coverage matrix
+  // ─────────────────────────────────────────────────
+  html += _sectionHdr(3, 'Hardware × Model Matrix', 'Which models have been tested on which hardware — empty = untested combination');
+
+  html += '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:0.8rem">';
+  html += '<thead><tr><th style="padding:6px 12px;text-align:left;border-bottom:2px solid var(--border);color:var(--text-muted);font-weight:600;min-width:160px">Model</th>';
+  hardwares.forEach(function(hw) {
+    html += '<th style="padding:6px 14px;text-align:center;border-bottom:2px solid var(--border);color:var(--text-muted);font-weight:600;white-space:nowrap">' + hw + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+  models.forEach(function(m, i) {
+    var mr = modelRows[m] || [];
+    var hwRows = {};
+    mr.forEach(function(r){ if(!hwRows[r.hardware]) hwRows[r.hardware]=[]; hwRows[r.hardware].push(r); });
+    html += '<tr style="border-bottom:1px solid var(--border);background:' + (i%2?'var(--bg-row)':'transparent') + '">';
+    html += '<td style="padding:6px 12px;font-weight:500;color:var(--text)">' + m + '</td>';
+    hardwares.forEach(function(hw) {
+      var hwR = hwRows[hw] || [];
+      if (!hwR.length) {
+        html += '<td style="padding:6px 14px;text-align:center;color:var(--border)">—</td>';
+      } else {
+        var sc2 = _statusCounts(hwR);
+        var c = sc2.pub === hwR.length ? 'var(--green)' : sc2.pub > 0 ? 'var(--green)' : sc2.fly > 0 ? 'var(--blue)' : sc2.cfg > 0 ? 'var(--amber)' : '#666';
+        var lbl = sc2.pub === hwR.length ? '✓' : hwR.length;
+        html += '<td style="padding:6px 14px;text-align:center"><span style="display:inline-block;width:28px;height:28px;border-radius:50%;background:' + c + '22;border:2px solid ' + c + ';color:' + c + ';font-size:0.75rem;font-weight:700;line-height:24px;text-align:center">' + lbl + '</span></td>';
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+
+  // ─────────────────────────────────────────────────
+  // OPTION 4: Performance watch list — AMD is winning here
+  // ─────────────────────────────────────────────────
+  html += _sectionHdr(4, 'Performance Watch List', 'Workloads where AMD is ahead — sorted by gap size');
+
+  var behind = rows.filter(function(r){ return r.gap_pct != null && r.gap_pct < 0; })
+    .sort(function(a,b){ return a.gap_pct - b.gap_pct; });
+
+  if (!behind.length) {
+    html += '<div style="padding:1rem 1.25rem;border-radius:8px;background:rgba(118,185,0,0.08);border:1px solid var(--green);color:var(--green);font-size:0.85rem">✓ No workloads where AMD is currently ahead</div>';
+  } else {
+    html += '<div style="display:flex;flex-direction:column;gap:0.4rem;max-width:720px">';
+    behind.forEach(function(r) {
+      var pct = Math.abs(Math.round(r.gap_pct * 100));
+      var barW = Math.min(100, pct * 2);
+      html += '<div style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0.75rem;border-radius:6px;background:var(--bg-card);border:1px solid var(--border)">'
+        + '<div style="flex:1;min-width:0">'
+        + '<span style="font-size:0.82rem;font-weight:600;color:var(--text)">' + (r.model||'?') + '</span>'
+        + '<span style="font-size:0.75rem;color:var(--text-muted);margin-left:0.5rem">' + (r.hardware||'') + ' · ' + (r.framework||'') + ' · ' + (r.precision||'') + ' · ' + (r.scenario||'') + (r.seqlens?' · '+r.seqlens:'') + '</span>'
+        + '</div>'
+        + '<div style="width:100px;background:var(--bg-row);border-radius:3px;height:8px;flex-shrink:0">'
+        + '<div style="width:' + barW + '%;background:var(--red,#f87171);border-radius:3px;height:100%"></div>'
+        + '</div>'
+        + '<div style="width:60px;text-align:right;font-size:0.82rem;font-weight:700;color:#f87171;font-family:Rajdhani,sans-serif;flex-shrink:0">AMD +' + pct + '%</div>'
+        + '</div>';
+    });
+    html += '</div>';
+  }
+
+  // ─────────────────────────────────────────────────
+  // OPTION 5: Effort allocation — are we over-indexed anywhere?
+  // ─────────────────────────────────────────────────
+  html += _sectionHdr(5, 'Effort Allocation', 'Workload count per model — wide bars on not-started may signal over-commitment');
+
+  var maxTotal = Math.max.apply(null, models.map(function(m){ return modelCount[m]; }).concat([1]));
+  html += '<div style="max-width:680px">';
+  models.forEach(function(m) {
+    var mr = modelRows[m] || [];
+    var total = mr.length;
+    var sc = _statusCounts(mr);
+    // Segments as proportional widths of the full bar
+    var pubs = sc.pub/total*100, flys = sc.fly/total*100, cfgs = sc.cfg/total*100, nss = sc.ns/total*100;
+    var barPct = Math.max(2, Math.round(total/maxTotal*100));
+    html += '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.55rem">'
+      + '<div style="width:155px;text-align:right;font-size:0.8rem;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + m + '</div>'
+      + '<div style="width:' + barPct + '%;max-width:calc(100% - 250px);min-width:4px;display:flex;height:18px;border-radius:4px;overflow:hidden;border:1px solid var(--border)">'
+      + (pubs > 0 ? '<div style="flex:' + pubs + ';background:var(--green)"></div>' : '')
+      + (flys > 0 ? '<div style="flex:' + flys + ';background:var(--blue)"></div>' : '')
+      + (cfgs > 0 ? '<div style="flex:' + cfgs + ';background:var(--amber)"></div>' : '')
+      + (nss  > 0 ? '<div style="flex:' + nss  + ';background:#3a3a3a"></div>' : '')
+      + '</div>'
+      + '<div style="font-size:0.72rem;color:var(--text-muted);white-space:nowrap">' + total + ' wl'
+      + (sc.ns > total*0.6 ? '<span style="color:var(--amber);margin-left:4px">⚠ ' + sc.ns + ' not started</span>' : '')
+      + '</div>'
+      + '</div>';
+  });
+  html += '</div>';
+  // Legend
+  html += '<div style="display:flex;gap:1rem;margin-top:0.5rem;font-size:0.72rem;color:var(--text-muted)">'
+    + '<span><span style="display:inline-block;width:10px;height:10px;background:var(--green);border-radius:2px;margin-right:3px"></span>published</span>'
+    + '<span><span style="display:inline-block;width:10px;height:10px;background:var(--blue);border-radius:2px;margin-right:3px"></span>in flight</span>'
+    + '<span><span style="display:inline-block;width:10px;height:10px;background:var(--amber);border-radius:2px;margin-right:3px"></span>config search</span>'
+    + '<span><span style="display:inline-block;width:10px;height:10px;background:#3a3a3a;border-radius:2px;margin-right:3px"></span>not started</span>'
+    + '</div>';
+
+  // ─────────────────────────────────────────────────
+  // OPTION 6: Seqlen × Model — what context ranges have any data at all?
+  // ─────────────────────────────────────────────────
+  html += _sectionHdr(6, 'Seqlen × Model Coverage', 'Which context lengths have ANY data per model — spot the swiss cheese');
+
+  // Collect all unique seqlens globally, sorted by numeric value
+  var allSeqlens = [];
+  var allSeqSet = {};
+  rows.forEach(function(r){ if(r.seqlens && !allSeqSet[r.seqlens]){ allSeqSet[r.seqlens]=true; allSeqlens.push(r.seqlens); } });
+  allSeqlens.sort(function(a,b){ return _seqK(a)-_seqK(b); });
+
+  // Lookup: model+seqlen → rows
+  var slLookup = {};
+  rows.forEach(function(r){
+    var key = (r.model||'')+'|||'+(r.seqlens||'');
+    if(!slLookup[key]) slLookup[key]=[];
+    slLookup[key].push(r);
+  });
+
+  html += '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:0.78rem">';
+  html += '<thead><tr><th style="padding:5px 10px;text-align:left;border-bottom:2px solid var(--border);color:var(--text-muted);font-weight:600;min-width:150px;position:sticky;left:0;background:var(--bg)">Model</th>';
+  allSeqlens.forEach(function(sl) {
+    html += '<th style="padding:5px 10px;text-align:center;border-bottom:2px solid var(--border);color:var(--text-muted);font-weight:600;white-space:nowrap;font-size:0.72rem">' + sl + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+  models.forEach(function(m, i) {
+    html += '<tr style="border-bottom:1px solid var(--border);background:' + (i%2?'var(--bg-row)':'transparent') + '">';
+    html += '<td style="padding:5px 10px;font-weight:500;color:var(--text);position:sticky;left:0;background:' + (i%2?'var(--bg-row)':'var(--bg)') + '">' + m + '</td>';
+    allSeqlens.forEach(function(sl) {
+      var cr = slLookup[(m)+'|||'+(sl)] || [];
+      if (!cr.length) {
+        html += '<td style="padding:5px 10px;text-align:center;color:var(--border);font-size:0.9rem">·</td>';
+      } else {
+        var sc2 = _statusCounts(cr);
+        var c = sc2.pub===cr.length?'var(--green)': sc2.fly>0?'var(--blue)': sc2.cfg>0?'var(--amber)':'#666';
+        html += '<td style="padding:5px 10px;text-align:center">'
+          + '<div style="width:32px;height:32px;border-radius:6px;background:'+c+'22;border:1px solid '+c+';margin:auto;display:flex;align-items:center;justify-content:center">'
+          + '<span style="font-size:0.72rem;font-weight:700;color:'+c+'">' + cr.length + '</span>'
+          + '</div></td>';
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>'
+    + '<div style="font-size:0.72rem;color:var(--text-label);margin-top:0.5rem">Number = workload count. · = no data at all for this combination.</div>';
+
+  document.getElementById('summary-content').innerHTML = html;
 }
 
 var _highlightedCol = null;
