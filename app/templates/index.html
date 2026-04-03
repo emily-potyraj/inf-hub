@@ -2,6 +2,19 @@
 {% block title %}Coverage · inf-hub{% endblock %}
 {% block content %}
 
+{# ── Tab switcher ── #}
+<div class="flex gap-1 mb-5" style="border-bottom:1px solid var(--border);padding-bottom:0">
+  <button id="tab-btn-tree" onclick="switchTab('tree')"
+          style="padding:6px 16px;border:none;border-bottom:2px solid var(--green);background:transparent;color:var(--text);font-size:0.85rem;font-weight:600;cursor:pointer;margin-bottom:-1px">
+    Tree
+  </button>
+  <button id="tab-btn-summary" onclick="switchTab('summary')"
+          style="padding:6px 16px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text-muted);font-size:0.85rem;cursor:pointer;margin-bottom:-1px">
+    Summary
+  </button>
+</div>
+
+<div id="tab-tree">
 {# ── Stat bar ── #}
 <div class="flex items-center justify-between mb-5" style="flex-wrap:wrap;gap:0.75rem">
   <div class="flex gap-4">
@@ -161,8 +174,15 @@
 {% endif %}
 </div>
 
-{# ── Matrix view (hidden by default) ── #}
+{# ── Matrix view (hidden by default, inside tree tab) ── #}
 <div id="matrix-view" style="display:none;overflow-x:auto"></div>
+
+</div>{# end tab-tree #}
+
+{# ── Summary tab ── #}
+<div id="tab-summary" style="display:none">
+  <div id="summary-content"></div>
+</div>
 
 {# ── Request Modal ── #}
 <div id="request-modal"
@@ -236,6 +256,172 @@
 
 <script>
 var _allRows = {{ rows_json | safe }};
+
+// ── Tab switching ──
+var _summaryBuilt = false;
+function switchTab(tab) {
+  ['tree','summary'].forEach(function(t) {
+    var el = document.getElementById('tab-' + t);
+    var btn = document.getElementById('tab-btn-' + t);
+    if (el) el.style.display = (t === tab) ? 'block' : 'none';
+    if (btn) {
+      btn.style.borderBottomColor = (t === tab) ? 'var(--green)' : 'transparent';
+      btn.style.color = (t === tab) ? 'var(--text)' : 'var(--text-muted)';
+      btn.style.fontWeight = (t === tab) ? '600' : 'normal';
+    }
+  });
+  if (tab === 'summary' && !_summaryBuilt) { buildSummary(); _summaryBuilt = true; }
+}
+
+// ── Summary view ──
+var _summaryModelFilter = '';
+var _summaryColFilter = '';
+
+function buildSummary() {
+  var rows = _allRows;
+
+  // Unique sorted seqlens — sort by numeric value of first token
+  var seqlenSet = {};
+  rows.forEach(function(r) { if (r.seqlens) seqlenSet[r.seqlens] = true; });
+  var seqlens = Object.keys(seqlenSet).sort(function(a, b) {
+    var na = parseInt(a) || 0, nb = parseInt(b) || 0;
+    return na - nb;
+  });
+
+  // Unique models sorted by total workload count desc (busiest first)
+  var modelCount = {};
+  rows.forEach(function(r) { modelCount[r.model] = (modelCount[r.model] || 0) + 1; });
+  var models = Object.keys(modelCount).sort(function(a, b) { return modelCount[b] - modelCount[a]; });
+
+  // Build lookup: model+seqlen → [rows]
+  var lookup = {};
+  rows.forEach(function(r) {
+    var key = (r.model || '') + '|||' + (r.seqlens || '');
+    if (!lookup[key]) lookup[key] = [];
+    lookup[key].push(r);
+  });
+
+  // Build HTML
+  var html = '';
+
+  // Legend + description
+  html += '<div class="flex items-center gap-4 mb-4" style="flex-wrap:wrap">'
+    + '<span style="font-size:0.78rem;color:var(--text-muted)">Rows sorted by workload count. Cells show status breakdown. Empty = no data.</span>'
+    + '<span class="flex gap-3" style="font-size:0.72rem;color:var(--text-muted)">'
+    + '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--green);margin-right:3px"></span>published</span>'
+    + '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--blue);margin-right:3px"></span>in flight</span>'
+    + '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--amber);margin-right:3px"></span>config search</span>'
+    + '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#444;margin-right:3px"></span>not started</span>'
+    + '</span></div>';
+
+  // Column filter row (Excel-like)
+  html += '<div style="overflow-x:auto"><table id="summary-table" style="border-collapse:collapse;font-size:0.8rem;min-width:500px">';
+  html += '<thead>';
+
+  // Row filter + column headers
+  html += '<tr style="position:sticky;top:0;z-index:2">';
+  html += '<th style="text-align:left;padding:6px 12px;background:var(--bg-card);border-bottom:2px solid var(--border);position:sticky;left:0;z-index:3;min-width:160px">'
+    + '<input id="summary-model-filter" oninput="filterSummary()" placeholder="Filter model…"'
+    + ' style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:3px 7px;color:var(--text);font-size:0.75rem">'
+    + '</th>';
+  seqlens.forEach(function(sl, i) {
+    html += '<th data-col="' + i + '" onclick="highlightCol(' + i + ')" style="padding:6px 10px;background:var(--bg-card);border-bottom:2px solid var(--border);text-align:center;cursor:pointer;min-width:100px;color:var(--text-muted);font-size:0.75rem;font-weight:600;white-space:nowrap"'
+      + ' title="Click to highlight" id="col-hdr-' + i + '">'
+      + sl + '</th>';
+  });
+  // Extra: hardware coverage column
+  html += '<th style="padding:6px 10px;background:var(--bg-card);border-bottom:2px solid var(--border);text-align:left;min-width:140px;color:var(--text-muted);font-size:0.75rem;font-weight:600">Hardware seen</th>';
+  html += '</tr></thead><tbody id="summary-tbody">';
+
+  // Data rows
+  models.forEach(function(m, mi) {
+    var rowHwSet = {};
+    rows.filter(function(r) { return r.model === m; }).forEach(function(r) { if (r.hardware) rowHwSet[r.hardware] = true; });
+    var hwList = Object.keys(rowHwSet).join(', ');
+    var total = modelCount[m];
+
+    html += '<tr class="summary-row" data-model="' + m.toLowerCase() + '" style="border-bottom:1px solid var(--border)">';
+    html += '<td style="padding:7px 12px;position:sticky;left:0;background:var(--bg);z-index:1;border-right:1px solid var(--border)">'
+      + '<div style="font-weight:600;color:var(--text);font-size:0.85rem">' + m + '</div>'
+      + '<div style="font-size:0.7rem;color:var(--text-label)">' + total + ' workload' + (total !== 1 ? 's' : '') + '</div>'
+      + '</td>';
+
+    seqlens.forEach(function(sl, ci) {
+      var key = m + '|||' + sl;
+      var cellRows = lookup[key] || [];
+      if (!cellRows.length) {
+        html += '<td class="summary-cell" data-col="' + ci + '" style="padding:5px 10px;text-align:center;color:var(--border)">—</td>';
+        return;
+      }
+      // Count by status
+      var pub = cellRows.filter(function(r) { return r.status === 'published'; }).length;
+      var fly = cellRows.filter(function(r) { return r.status === 'internal_review' || r.status === 'accuracy_gate'; }).length;
+      var cfg = cellRows.filter(function(r) { return r.status === 'config_search'; }).length;
+      var ns  = cellRows.filter(function(r) { return r.status === 'not_started'; }).length;
+
+      // Dominant color
+      var bg, border, textColor;
+      if (pub === cellRows.length)      { bg = 'rgba(118,185,0,0.15)'; border = 'var(--green)'; textColor = 'var(--green)'; }
+      else if (pub > 0)                 { bg = 'rgba(118,185,0,0.08)'; border = 'var(--green)'; textColor = 'var(--green)'; }
+      else if (fly > 0)                 { bg = 'rgba(0,180,216,0.12)'; border = 'var(--blue)'; textColor = 'var(--blue)'; }
+      else if (cfg > 0)                 { bg = 'rgba(251,191,36,0.12)'; border = 'var(--amber)'; textColor = 'var(--amber)'; }
+      else                              { bg = 'rgba(80,80,80,0.12)'; border = '#555'; textColor = '#888'; }
+
+      // Dots representing each workload by status
+      var dots = cellRows.map(function(r) {
+        var c = r.status === 'published' ? 'var(--green)'
+          : (r.status === 'internal_review' || r.status === 'accuracy_gate') ? 'var(--blue)'
+          : r.status === 'config_search' ? 'var(--amber)' : '#555';
+        return '<span title="' + (r.scenario || '') + ' ' + (r.framework || '') + ' ' + r.status + '" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + c + ';margin:1px"></span>';
+      }).join('');
+
+      html += '<td class="summary-cell" data-col="' + ci + '" style="padding:5px 10px;text-align:center">'
+        + '<div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px;padding:4px 8px;border-radius:5px;background:' + bg + ';border:1px solid ' + border + '">'
+        + '<div>' + dots + '</div>'
+        + '<div style="font-size:0.68rem;color:' + textColor + ';font-weight:600">' + cellRows.length + '</div>'
+        + '</div></td>';
+    });
+
+    html += '<td style="padding:7px 10px;font-size:0.75rem;color:var(--text-muted)">' + (hwList || '—') + '</td>';
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+
+  document.getElementById('summary-content').innerHTML = html;
+}
+
+function filterSummary() {
+  var q = (document.getElementById('summary-model-filter') || {}).value || '';
+  q = q.toLowerCase();
+  document.querySelectorAll('.summary-row').forEach(function(row) {
+    var m = row.getAttribute('data-model') || '';
+    row.style.display = (!q || m.includes(q)) ? '' : 'none';
+  });
+}
+
+var _highlightedCol = null;
+function highlightCol(ci) {
+  // Toggle highlight on column
+  document.querySelectorAll('[data-col]').forEach(function(el) {
+    var isThis = parseInt(el.getAttribute('data-col')) === ci;
+    el.style.background = isThis ? 'rgba(118,185,0,0.06)' : '';
+  });
+  var hdr = document.getElementById('col-hdr-' + ci);
+  if (_highlightedCol === ci) {
+    // de-highlight
+    document.querySelectorAll('[data-col]').forEach(function(el) { el.style.background = ''; });
+    if (hdr) { hdr.style.color = 'var(--text-muted)'; hdr.style.background = 'var(--bg-card)'; }
+    _highlightedCol = null;
+  } else {
+    if (_highlightedCol !== null) {
+      var old = document.getElementById('col-hdr-' + _highlightedCol);
+      if (old) { old.style.color = 'var(--text-muted)'; old.style.background = 'var(--bg-card)'; }
+    }
+    if (hdr) { hdr.style.color = 'var(--green)'; hdr.style.background = 'rgba(118,185,0,0.08)'; }
+    _highlightedCol = ci;
+  }
+}
 
 // ── Tree collapse/expand ──
 function toggleModel(btn) {
