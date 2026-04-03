@@ -457,13 +457,13 @@ function buildSummary() {
   var rows = _allRows;
   var html = '';
 
-  // ── NVIDIA brand color palette ──
+  // ── Status color palette — distinct by design ──
   var C_PUB = '#76b900';  // NVIDIA Green — published
-  var C_FLY = '#4d7a00';  // mid green — in flight
-  var C_CFG = '#2e4800';  // dark green — config search
-  var C_NS  = '#2a2a2a';  // near black — not started
-  var CT_FLY = '#6aaa00'; // readable text for in-flight
-  var CT_CFG = '#5a8a00'; // readable text for config search
+  var C_FLY = '#22d3ee';  // cyan — in flight
+  var C_CFG = '#f59e0b';  // amber — config search
+  var C_NS  = '#374151';  // slate gray — not started
+  var CT_FLY = '#22d3ee';
+  var CT_CFG = '#f59e0b';
 
   // Pre-compute common lookups
   var modelCount = {}, modelRows = {};
@@ -637,12 +637,12 @@ function buildSummary() {
         html += '<td style="padding:6px 12px;text-align:center;color:#2e2e2e;font-size:1rem">·</td>';
       } else {
         var sc2 = _statusCounts(cr);
-        var borderC = sc2.pub===cr.length ? C_PUB : sc2.fly>0 ? C_FLY : sc2.cfg>0 ? C_CFG : '#333';
+        var borderC = sc2.pub===cr.length ? C_PUB : sc2.fly>0 ? C_FLY : sc2.cfg>0 ? C_CFG : C_NS;
         var parts = [];
         if (sc2.pub) parts.push('<div style="color:' + C_PUB  + ';font-size:0.65rem">✓ ' + sc2.pub + '</div>');
         if (sc2.fly) parts.push('<div style="color:' + CT_FLY + ';font-size:0.65rem">⟳ ' + sc2.fly + '</div>');
         if (sc2.cfg) parts.push('<div style="color:' + CT_CFG + ';font-size:0.65rem">⚙ ' + sc2.cfg + '</div>');
-        if (sc2.ns)  parts.push('<div style="color:#484848;font-size:0.65rem">○ ' + sc2.ns  + '</div>');
+        if (sc2.ns)  parts.push('<div style="color:' + C_NS   + ';font-size:0.65rem">○ ' + sc2.ns  + '</div>');
         html += '<td style="padding:4px 8px;text-align:center">'
           + '<div style="display:inline-block;min-width:42px;padding:4px 6px;border-radius:5px;border:1px solid ' + borderC + ';background:' + borderC + '18">'
           + _stackBar(sc2, 4, 2)
@@ -677,26 +677,38 @@ function buildSummary() {
       hwMap[hw].push(r);
     });
 
+    var pubPct = total > 0 ? Math.round(sc.pub / total * 100) : 0;
+    var activePct = total > 0 ? Math.round((sc.fly + sc.cfg) / total * 100) : 0;
+    var healthC = pubPct >= 70 ? C_PUB : sc.ns > total*0.6 ? '#f87171' : C_CFG;
+    var healthBg = pubPct >= 70 ? 'rgba(118,185,0,0.06)' : sc.ns > total*0.6 ? 'rgba(248,113,113,0.06)' : 'rgba(245,158,11,0.06)';
+
     var hwLines = Object.keys(hwMap).sort().map(function(hw) {
       var hr = hwMap[hw];
       var hsc = _statusCounts(hr);
+      var hPubPct = hr.length > 0 ? Math.round(hsc.pub / hr.length * 100) : 0;
+      var hC = hsc.pub === hr.length ? C_PUB : hsc.fly > 0 ? C_FLY : hsc.cfg > 0 ? C_CFG : C_NS;
       return '<div style="display:flex;align-items:center;gap:0.5rem">'
         + '<span style="font-size:0.68rem;color:var(--text-label);width:76px;flex-shrink:0;text-align:right">' + hw + '</span>'
-        + '<div style="width:90px;flex-shrink:0">' + _stackBar(hsc, 6, 2) + '</div>'
+        + '<div style="width:110px;flex-shrink:0">' + _stackBar(hsc, 7, 2) + '</div>'
         + '<span style="font-size:0.68rem">' + _countBadges(hsc) + '</span>'
+        + '<span class="font-metric" style="font-size:0.72rem;color:' + hC + ';margin-left:auto;flex-shrink:0">' + hPubPct + '%</span>'
         + '</div>';
     }).join('');
 
-    html += '<div style="margin-bottom:0.85rem;padding:0.8rem 1rem;border-radius:6px;background:var(--bg-card);border:1px solid ' + (warn?'rgba(248,113,113,0.2)':'var(--border)') + '">'
-      + '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.55rem">'
+    html += '<div style="margin-bottom:0.85rem;border-radius:6px;background:var(--bg-card);border:1px solid ' + healthC + '44;border-left:3px solid ' + healthC + ';overflow:hidden">'
+      + '<div style="padding:0.8rem 1rem;background:' + healthBg + '">'
+      + '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.6rem">'
       + '<div style="width:130px;text-align:right;font-size:0.84rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0">' + m + '</div>'
-      + '<div style="flex:1;min-width:0"><div style="width:' + barPct + '%;min-width:4px">' + _stackBar(sc, 14, 4) + '</div></div>'
-      + '<div style="font-size:0.72rem;color:var(--text-muted);flex-shrink:0;text-align:right">'
-      + total + ' wl' + (warn ? '&nbsp;&nbsp;<span style="color:#f87171">⚠ ' + sc.ns + ' idle</span>' : '')
+      + '<div style="flex:1;min-width:0">' + _stackBar(sc, 16, 4) + '</div>'
+      + '<div class="font-metric" style="font-size:1.1rem;font-weight:700;color:' + healthC + ';flex-shrink:0;min-width:42px;text-align:right">' + pubPct + '%</div>'
+      + '<div style="font-size:0.68rem;color:var(--text-muted);flex-shrink:0;text-align:right;line-height:1.4">'
+      + total + ' wl'
+      + (sc.ns > total*0.6 ? '<br><span style="color:#f87171">⚠ ' + sc.ns + ' idle</span>' : '')
+      + (activePct > 0 && pubPct < 70 ? '<br><span style="color:' + C_FLY + '">' + activePct + '% active</span>' : '')
       + '</div>'
       + '</div>'
       + '<div style="display:flex;flex-wrap:wrap;gap:0.4rem 1.25rem;margin-left:138px">' + hwLines + '</div>'
-      + '</div>';
+      + '</div></div>';
   });
   html += '</div>';
   html += _legend();
