@@ -49,7 +49,7 @@
     <button onclick="exportCSV()" class="badge badge-muted" style="cursor:pointer;padding:4px 10px;font-size:0.78rem">Export CSV</button>
     <button onclick="exportJSON()" class="badge badge-muted" style="cursor:pointer;padding:4px 10px;font-size:0.78rem">Export JSON</button>
     <button onclick="toggleView()" id="view-toggle-btn" class="badge badge-muted" style="cursor:pointer;padding:4px 10px;font-size:0.78rem">Matrix view</button>
-    <button onclick="openRequestModal({})" style="background:var(--green);color:#000;font-weight:700;border:none;border-radius:5px;padding:5px 14px;font-size:0.82rem;cursor:pointer;letter-spacing:0.02em">+ Request</button>
+    <a href="/requests" style="background:var(--green);color:#000;font-weight:700;border:none;border-radius:5px;padding:5px 14px;font-size:0.82rem;cursor:pointer;letter-spacing:0.02em;text-decoration:none;display:inline-block">+ Request</a>
   </div>
 </div>
 
@@ -78,7 +78,14 @@
     <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
     {% endfor %}
   </select>
-  {% if filters.q or filters.model or filters.hardware or filters.status %}
+  <select name="pic" onchange="this.form.submit()"
+          style="background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:5px 10px;color:var(--text);font-size:0.82rem">
+    <option value="">All PICs</option>
+    {% for p in filter_options.pic %}
+    <option value="{{ p }}" {% if filters.pic == p %}selected{% endif %}>{{ p }}</option>
+    {% endfor %}
+  </select>
+  {% if filters.q or filters.model or filters.hardware or filters.status or filters.pic %}
   <a href="/" style="font-size:0.78rem;color:var(--text-muted);text-decoration:none">✕ clear</a>
   {% endif %}
 </form>
@@ -112,10 +119,7 @@
       {% if model_published.n > 0 %}
       <span class="badge badge-green" style="font-size:0.68rem">{{ model_published.n }} published</span>
       {% endif %}
-      <button onclick="event.stopPropagation(); openRequestModal({model: '{{ model_name | e }}'})"
-              style="font-size:0.72rem;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;margin-left:0.5rem">
-        + Request
-      </button>
+      <a href="/requests" style="background:var(--green);color:#000;font-weight:700;border:none;border-radius:5px;padding:5px 14px;font-size:0.82rem;cursor:pointer;letter-spacing:0.02em;text-decoration:none;display:inline-block">+ Request</a>
     </button>
 
     <div class="model-body" style="border-top:1px solid var(--border)">
@@ -130,10 +134,7 @@
           <span style="font-size:0.8rem;color:var(--text-muted)">{{ prec }}</span>
           <span style="flex:1"></span>
           <span style="font-size:0.72rem;color:var(--text-label)">{{ wl_rows | length }} workload{{ 's' if wl_rows | length != 1 else '' }}</span>
-          <button onclick="openRequestModal({model: '{{ model_name | e }}', hardware: '{{ hw | e }}', framework: '{{ fw | e }}', precision: '{{ prec | e }}'})"
-                  style="font-size:0.68rem;padding:1px 6px;border-radius:3px;border:1px solid var(--border);background:transparent;color:var(--text-label);cursor:pointer">
-            + Request variant
-          </button>
+          <a href="/requests" style="background:var(--green);color:#000;font-weight:700;border:none;border-radius:5px;padding:5px 14px;font-size:0.82rem;cursor:pointer;letter-spacing:0.02em;text-decoration:none;display:inline-block">+ Request</a>
         </div>
         {# Workload rows #}
         {% for r in wl_rows %}
@@ -191,76 +192,6 @@
 {# ── Table tab ── #}
 <div id="tab-table" style="display:none">
   <div id="table-content"></div>
-</div>
-
-{# ── Request Modal ── #}
-<div id="request-modal"
-     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:200;align-items:center;justify-content:center">
-  <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:2rem;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto">
-    <div class="flex items-center justify-between mb-4">
-      <h3 class="font-metric font-bold" style="color:var(--text);font-size:1.05rem">Request workload</h3>
-      <button onclick="closeRequestModal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem">✕</button>
-    </div>
-    <div id="request-success" style="display:none;background:rgba(118,185,0,0.1);border:1px solid var(--green);border-radius:6px;padding:0.75rem;margin-bottom:1rem;color:var(--green);font-size:0.85rem">
-      ✓ Request submitted — workload added.
-    </div>
-    <form id="request-form">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
-        <div>
-          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Model *</label>
-          <input id="req-model" list="opt-model" required placeholder="e.g. DeepSeek-R1"
-                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
-          <datalist id="opt-model">{% for m in filter_options.model %}<option value="{{ m }}">{% endfor %}</datalist>
-        </div>
-        <div>
-          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Hardware *</label>
-          <input id="req-hardware" list="opt-hw" required placeholder="e.g. B200"
-                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
-          <datalist id="opt-hw">{% for h in filter_options.hardware %}<option value="{{ h }}">{% endfor %}</datalist>
-        </div>
-        <div>
-          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Framework *</label>
-          <input id="req-framework" list="opt-fw" required placeholder="e.g. TRT-LLM"
-                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
-          <datalist id="opt-fw">{% for f in filter_options.framework %}<option value="{{ f }}">{% endfor %}</datalist>
-        </div>
-        <div>
-          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Precision *</label>
-          <input id="req-precision" list="opt-prec" required placeholder="e.g. FP8"
-                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
-          <datalist id="opt-prec">{% for p in filter_options.precision %}<option value="{{ p }}">{% endfor %}</datalist>
-        </div>
-        <div>
-          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Scenario *</label>
-          <input id="req-scenario" list="opt-scen" required placeholder="e.g. agg"
-                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
-          <datalist id="opt-scen">{% for s in filter_options.scenario %}<option value="{{ s }}">{% endfor %}</datalist>
-        </div>
-        <div>
-          <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Seqlens</label>
-          <input id="req-seqlens" list="opt-seqlen" placeholder="e.g. 1k/1k"
-                 style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem">
-          <datalist id="opt-seqlen">{% for s in filter_options.seqlens %}<option value="{{ s }}">{% endfor %}</datalist>
-        </div>
-      </div>
-      <div style="margin-top:0.75rem">
-        <label style="font-size:0.68rem;color:var(--text-label);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:3px">Reason / notes</label>
-        <textarea id="req-notes" rows="2" placeholder="Why is this needed? Context for the team…"
-                  style="width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:0.85rem;resize:vertical"></textarea>
-      </div>
-      <div id="request-error" style="display:none;color:var(--red);font-size:0.82rem;margin-top:0.5rem"></div>
-      <div class="flex gap-2 justify-end" style="margin-top:1rem">
-        <button type="button" onclick="closeRequestModal()"
-                style="font-size:0.85rem;padding:6px 14px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer">
-          Cancel
-        </button>
-        <button type="submit"
-                style="font-size:0.85rem;padding:6px 18px;border-radius:5px;border:none;background:var(--green);color:#000;font-weight:700;cursor:pointer">
-          Submit Request
-        </button>
-      </div>
-    </form>
-  </div>
 </div>
 
 <script>
@@ -820,63 +751,6 @@ function buildMatrix() {
   html += '</tbody></table>';
   document.getElementById('matrix-view').innerHTML = html;
 }
-
-// ── Request modal ──
-function openRequestModal(prefill) {
-  prefill = prefill || {};
-  document.getElementById('req-model').value = prefill.model || '';
-  document.getElementById('req-hardware').value = prefill.hardware || '';
-  document.getElementById('req-framework').value = prefill.framework || '';
-  document.getElementById('req-precision').value = prefill.precision || '';
-  document.getElementById('req-scenario').value = prefill.scenario || '';
-  document.getElementById('req-seqlens').value = prefill.seqlens || '';
-  document.getElementById('req-notes').value = '';
-  document.getElementById('request-success').style.display = 'none';
-  document.getElementById('request-error').style.display = 'none';
-  document.getElementById('request-modal').style.display = 'flex';
-  document.getElementById('req-model').focus();
-}
-
-function closeRequestModal() {
-  document.getElementById('request-modal').style.display = 'none';
-}
-
-document.getElementById('request-form').addEventListener('submit', function(e) {
-  e.preventDefault();
-  var errEl = document.getElementById('request-error');
-  errEl.style.display = 'none';
-  var payload = {
-    model: document.getElementById('req-model').value.trim(),
-    hardware: document.getElementById('req-hardware').value.trim(),
-    framework: document.getElementById('req-framework').value.trim(),
-    precision: document.getElementById('req-precision').value.trim(),
-    scenario: document.getElementById('req-scenario').value.trim(),
-    seqlens: document.getElementById('req-seqlens').value.trim() || null,
-    notes: document.getElementById('req-notes').value.trim() || null,
-    status: 'not_started',
-  };
-  fetch('/workloads', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(payload),
-  })
-  .then(function(r) {
-    if (!r.ok) return r.json().then(function(d) { throw new Error(d.detail || r.status); });
-    return r.json();
-  })
-  .then(function() {
-    document.getElementById('request-success').style.display = 'block';
-    setTimeout(function() { closeRequestModal(); window.location.reload(); }, 1200);
-  })
-  .catch(function(err) {
-    errEl.textContent = 'Error: ' + err.message;
-    errEl.style.display = 'block';
-  });
-});
-
-document.getElementById('request-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeRequestModal();
-});
 
 // ── Export ──
 function exportCSV() {
