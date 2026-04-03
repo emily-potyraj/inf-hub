@@ -4,21 +4,21 @@
 
 {# ── Tab switcher ── #}
 <div class="flex gap-1 mb-5" style="border-bottom:1px solid var(--border);padding-bottom:0">
-  <button id="tab-btn-tree" onclick="switchTab('tree')"
-          style="padding:6px 16px;border:none;border-bottom:2px solid var(--green);background:transparent;color:var(--text);font-size:0.85rem;font-weight:600;cursor:pointer;margin-bottom:-1px">
-    Tree
-  </button>
   <button id="tab-btn-summary" onclick="switchTab('summary')"
-          style="padding:6px 16px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text-muted);font-size:0.85rem;cursor:pointer;margin-bottom:-1px">
+          style="padding:6px 16px;border:none;border-bottom:2px solid var(--green);background:transparent;color:var(--text);font-size:0.85rem;font-weight:600;cursor:pointer;margin-bottom:-1px">
     Summary
   </button>
   <button id="tab-btn-table" onclick="switchTab('table')"
           style="padding:6px 16px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text-muted);font-size:0.85rem;cursor:pointer;margin-bottom:-1px">
     Table
   </button>
+  <button id="tab-btn-tree" onclick="switchTab('tree')"
+          style="padding:6px 16px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text-muted);font-size:0.85rem;cursor:pointer;margin-bottom:-1px">
+    Tree
+  </button>
 </div>
 
-<div id="tab-tree">
+<div id="tab-tree" style="display:none">
 {# ── Stat bar ── #}
 <div class="flex items-center justify-between mb-5" style="flex-wrap:wrap;gap:0.75rem">
   <div class="flex gap-4">
@@ -184,7 +184,7 @@
 </div>{# end tab-tree #}
 
 {# ── Summary tab ── #}
-<div id="tab-summary" style="display:none">
+<div id="tab-summary">
   <div id="summary-content"></div>
 </div>
 
@@ -283,6 +283,8 @@ function switchTab(tab) {
   if (tab === 'summary' && !_summaryBuilt) { buildSummary(); _summaryBuilt = true; }
   if (tab === 'table'   && !_tableBuilt)   { buildTable();   _tableBuilt   = true; }
 }
+// Summary is the default tab — build it on load
+switchTab('summary');
 
 // ── Excel-style table ──
 var _tableRows = null;
@@ -509,58 +511,9 @@ function buildSummary() {
   }
 
   // ─────────────────────────────────────────────────
-  // OPTION 1: Context Frontier
+  // OPTION 1: Model Coverage Scorecards
   // ─────────────────────────────────────────────────
-  html += _sectionHdr(1, 'Context Frontier', 'Max seqlen per model — chips show every seqlen tested, colored by status');
-
-  var modelMaxSeq = {}, modelMaxSeqLabel = {}, modelSeqMap = {};
-  rows.forEach(function(r) {
-    var m = r.model || '?';
-    var k = _seqK(r.seqlens);
-    if (!modelMaxSeq[m] || k > modelMaxSeq[m]) { modelMaxSeq[m] = k; modelMaxSeqLabel[m] = r.seqlens || '?'; }
-    if (!modelSeqMap[m]) modelSeqMap[m] = {};
-    if (r.seqlens) {
-      if (!modelSeqMap[m][r.seqlens]) modelSeqMap[m][r.seqlens] = [];
-      modelSeqMap[m][r.seqlens].push(r);
-    }
-  });
-  var globalMax = Math.max.apply(null, Object.values(modelMaxSeq).concat([1]));
-  var modelsBySeq = models.slice().sort(function(a,b){ return (modelMaxSeq[b]||0)-(modelMaxSeq[a]||0); });
-
-  html += '<div style="max-width:820px">';
-  modelsBySeq.forEach(function(m) {
-    var maxK = modelMaxSeq[m] || 0;
-    var pct = globalMax > 0 ? Math.max(3, Math.round(maxK / globalMax * 100)) : 3;
-    var sc = _statusCounts(modelRows[m] || []);
-    var barC = sc.pub > 0 ? C_PUB : sc.fly > 0 ? C_FLY : sc.cfg > 0 ? C_CFG : '#3a3a3a';
-    var seqlens = Object.keys(modelSeqMap[m] || {}).sort(function(a,b){return _seqK(a)-_seqK(b);});
-    var chips = seqlens.map(function(sl) {
-      var best = _bestStatus(modelSeqMap[m][sl]);
-      var cc = best==='pub'?C_PUB : best==='fly'?CT_FLY : best==='cfg'?CT_CFG : '#484848';
-      var bg = best==='pub'?'rgba(118,185,0,0.13)' : best==='fly'?'rgba(77,122,0,0.15)' : best==='cfg'?'rgba(46,72,0,0.2)' : 'rgba(42,42,42,0.6)';
-      var wlCount = modelSeqMap[m][sl].length;
-      return '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;border:1px solid ' + cc + ';background:' + bg + ';color:' + cc + ';font-size:0.7rem;font-weight:600;white-space:nowrap">'
-        + sl + (wlCount > 1 ? '<span style="opacity:0.7;font-weight:400">×' + wlCount + '</span>' : '') + '</span>';
-    }).join('');
-    html += '<div style="display:flex;align-items:flex-start;gap:0.75rem;margin-bottom:1rem">'
-      + '<div style="width:148px;text-align:right;font-size:0.82rem;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:2px;flex-shrink:0">' + m + '</div>'
-      + '<div style="flex:1;min-width:0">'
-      + '<div style="background:#181818;border-radius:4px;height:16px;border:1px solid var(--border);overflow:hidden;margin-bottom:0.45rem">'
-      + '<div style="width:' + pct + '%;background:' + barC + ';height:100%"></div></div>'
-      + '<div style="display:flex;flex-wrap:wrap;gap:0.3rem">' + chips + '</div>'
-      + '</div>'
-      + '<div style="width:168px;font-size:0.72rem;color:var(--text-muted);padding-top:1px;flex-shrink:0;line-height:1.7">'
-      + '<div class="font-metric" style="font-weight:700;color:var(--text);font-size:0.9rem">' + (modelMaxSeqLabel[m]||'—') + ' max</div>'
-      + '<div>' + _countBadges(sc) + '</div>'
-      + '</div>'
-      + '</div>';
-  });
-  html += '</div>';
-
-  // ─────────────────────────────────────────────────
-  // OPTION 2: Model Coverage Scorecards
-  // ─────────────────────────────────────────────────
-  html += _sectionHdr(2, 'Model Coverage', 'Each card lists every hw/framework/precision stack and its status — spot untouched stacks at a glance');
+  html += _sectionHdr(1, 'Model Coverage', 'Each card lists every hw/framework/precision stack and its status — spot untouched stacks at a glance');
 
   html += '<div style="display:flex;flex-wrap:wrap;gap:0.75rem">';
   models.forEach(function(m) {
@@ -609,9 +562,9 @@ function buildSummary() {
   html += '</div>';
 
   // ─────────────────────────────────────────────────
-  // OPTION 3: Hardware × Model Matrix
+  // OPTION 2: Hardware × Model Matrix
   // ─────────────────────────────────────────────────
-  html += _sectionHdr(3, 'Hardware × Model Matrix', 'Full status breakdown per model × hardware — shows count, progress bar, and frameworks tested');
+  html += _sectionHdr(2, 'Hardware × Model Matrix', 'Full status breakdown per model × hardware — shows count, progress bar, and frameworks tested');
 
   html += '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:0.8rem">';
   html += '<thead><tr>'
@@ -651,107 +604,9 @@ function buildSummary() {
   html += _legend();
 
   // ─────────────────────────────────────────────────
-  // OPTION 4: NV vs AMD Head-to-Head
+  // OPTION 3: Seqlen × Model Coverage
   // ─────────────────────────────────────────────────
-  html += _sectionHdr(4, 'NV vs AMD — Head-to-Head', 'TPS comparison for all workloads with measurement data — sorted worst NV gap first');
-
-  var competing = rows.filter(function(r){ return r.nv_tps != null && r.amd_tps != null; })
-    .sort(function(a,b){
-      var ga = a.gap_pct != null ? a.gap_pct : 0;
-      var gb = b.gap_pct != null ? b.gap_pct : 0;
-      return ga - gb;
-    });
-
-  if (!competing.length) {
-    html += '<div style="padding:1rem 1.25rem;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);color:var(--text-muted);font-size:0.85rem">No workloads have both NV and AMD TPS data yet.</div>';
-  } else {
-    var maxTps = Math.max.apply(null, competing.map(function(r){ return Math.max(r.nv_tps||0, r.amd_tps||0); }).concat([1]));
-    html += '<div style="max-width:760px">';
-    html += '<div style="display:flex;gap:1.5rem;font-size:0.72rem;color:var(--text-muted);margin-bottom:0.9rem">'
-      + '<span><span style="display:inline-block;width:14px;height:4px;background:' + C_PUB + ';border-radius:2px;margin-right:5px;vertical-align:middle"></span>NVIDIA</span>'
-      + '<span><span style="display:inline-block;width:14px;height:4px;background:#6b7280;border-radius:2px;margin-right:5px;vertical-align:middle"></span>AMD</span>'
-      + '</div>';
-    competing.forEach(function(r) {
-      var nvW  = Math.round((r.nv_tps  / maxTps) * 100);
-      var amdW = Math.round((r.amd_tps / maxTps) * 100);
-      var gapPct = r.gap_pct != null ? Math.round(r.gap_pct * 100) : null;
-      var nvAhead = gapPct != null && gapPct >= 0;
-      var gapColor = nvAhead ? C_PUB : '#f87171';
-      var gapLabel = gapPct != null ? (nvAhead ? 'NV +' + Math.abs(gapPct) + '%' : 'AMD +' + Math.abs(gapPct) + '%') : '—';
-      var descStr = [r.hardware, r.framework, r.precision, r.scenario, r.seqlens].filter(Boolean).join(' · ');
-      html += '<div style="margin-bottom:0.7rem;padding:0.8rem 1rem;border-radius:6px;background:var(--bg-card);border:1px solid ' + (nvAhead ? 'var(--border)' : 'rgba(248,113,113,0.2)') + '">'
-        + '<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:0.4rem">'
-        + '<div><span style="font-size:0.84rem;font-weight:700;color:var(--text)">' + (r.model||'?') + '</span>'
-        + '<span style="font-size:0.73rem;color:var(--text-muted);margin-left:0.5rem">' + descStr + '</span></div>'
-        + '<span class="font-metric" style="font-size:0.9rem;font-weight:700;color:' + gapColor + ';flex-shrink:0;margin-left:0.75rem">' + gapLabel + '</span>'
-        + '</div>'
-        + '<div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.3rem">'
-        + '<span style="width:36px;font-size:0.68rem;color:var(--text-label);text-align:right;font-weight:600">NV</span>'
-        + '<div style="flex:1;background:#151515;border-radius:3px;height:11px">'
-        + '<div style="width:' + nvW + '%;background:' + C_PUB + ';border-radius:3px;height:100%"></div></div>'
-        + '<span class="font-metric" style="width:72px;text-align:right;font-size:0.8rem;color:var(--text)">' + Math.round(r.nv_tps).toLocaleString() + ' t/s</span>'
-        + '</div>'
-        + '<div style="display:flex;align-items:center;gap:0.6rem">'
-        + '<span style="width:36px;font-size:0.68rem;color:var(--text-label);text-align:right">AMD</span>'
-        + '<div style="flex:1;background:#151515;border-radius:3px;height:11px">'
-        + '<div style="width:' + amdW + '%;background:#6b7280;border-radius:3px;height:100%"></div></div>'
-        + '<span class="font-metric" style="width:72px;text-align:right;font-size:0.8rem;color:var(--text-muted)">' + Math.round(r.amd_tps).toLocaleString() + ' t/s</span>'
-        + '</div>'
-        + '</div>';
-    });
-    html += '</div>';
-  }
-
-  // ─────────────────────────────────────────────────
-  // OPTION 5: Effort Allocation
-  // ─────────────────────────────────────────────────
-  html += _sectionHdr(5, 'Effort Allocation', 'Workloads per model with per-hardware breakdown — identify over-commitment and idle hardware');
-
-  var maxTotal = Math.max.apply(null, models.map(function(m){ return modelCount[m]; }).concat([1]));
-  html += '<div style="max-width:820px">';
-  models.forEach(function(m) {
-    var mr = modelRows[m] || [];
-    var total = mr.length;
-    var sc = _statusCounts(mr);
-    var barPct = Math.max(3, Math.round(total/maxTotal*100));
-    var warn = sc.ns > total*0.6;
-
-    // Per-hardware breakdown
-    var hwMap = {};
-    mr.forEach(function(r) {
-      var hw = r.hardware || '?';
-      if (!hwMap[hw]) hwMap[hw] = [];
-      hwMap[hw].push(r);
-    });
-
-    var hwLines = Object.keys(hwMap).sort().map(function(hw) {
-      var hr = hwMap[hw];
-      var hsc = _statusCounts(hr);
-      return '<div style="display:flex;align-items:center;gap:0.5rem">'
-        + '<span style="font-size:0.68rem;color:var(--text-label);width:76px;flex-shrink:0;text-align:right">' + hw + '</span>'
-        + '<div style="width:90px;flex-shrink:0">' + _stackBar(hsc, 6, 2) + '</div>'
-        + '<span style="font-size:0.68rem">' + _countBadges(hsc) + '</span>'
-        + '</div>';
-    }).join('');
-
-    html += '<div style="margin-bottom:0.85rem;padding:0.8rem 1rem;border-radius:6px;background:var(--bg-card);border:1px solid ' + (warn?'rgba(248,113,113,0.2)':'var(--border)') + '">'
-      + '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.55rem">'
-      + '<div style="width:130px;text-align:right;font-size:0.84rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0">' + m + '</div>'
-      + '<div style="flex:1;min-width:0"><div style="width:' + barPct + '%;min-width:4px">' + _stackBar(sc, 14, 4) + '</div></div>'
-      + '<div style="font-size:0.72rem;color:var(--text-muted);flex-shrink:0;text-align:right">'
-      + total + ' wl' + (warn ? '&nbsp;&nbsp;<span style="color:#f87171">⚠ ' + sc.ns + ' idle</span>' : '')
-      + '</div>'
-      + '</div>'
-      + '<div style="display:flex;flex-wrap:wrap;gap:0.4rem 1.25rem;margin-left:138px">' + hwLines + '</div>'
-      + '</div>';
-  });
-  html += '</div>';
-  html += _legend();
-
-  // ─────────────────────────────────────────────────
-  // OPTION 6: Seqlen × Model Coverage
-  // ─────────────────────────────────────────────────
-  html += _sectionHdr(6, 'Seqlen × Model Coverage', 'Status breakdown in every model × context-length cell — find the gaps and partial coverage');
+  html += _sectionHdr(3, 'Seqlen × Model Coverage', 'Status breakdown in every model × context-length cell — find the gaps and partial coverage');
 
   var allSeqlens = [];
   var allSeqSet = {};
@@ -799,6 +654,52 @@ function buildSummary() {
   });
   html += '</tbody></table></div>'
     + '<div style="font-size:0.72rem;color:var(--text-label);margin-top:0.6rem">· = no data. ✓ published · ⟳ in flight · ⚙ config search · ○ not started</div>';
+
+  // ─────────────────────────────────────────────────
+  // OPTION 4: Effort Allocation
+  // ─────────────────────────────────────────────────
+  html += _sectionHdr(4, 'Effort Allocation', 'Workloads per model with per-hardware breakdown — identify over-commitment and idle hardware');
+
+  var maxTotal = Math.max.apply(null, models.map(function(m){ return modelCount[m]; }).concat([1]));
+  html += '<div style="max-width:820px">';
+  models.forEach(function(m) {
+    var mr = modelRows[m] || [];
+    var total = mr.length;
+    var sc = _statusCounts(mr);
+    var barPct = Math.max(3, Math.round(total/maxTotal*100));
+    var warn = sc.ns > total*0.6;
+
+    // Per-hardware breakdown
+    var hwMap = {};
+    mr.forEach(function(r) {
+      var hw = r.hardware || '?';
+      if (!hwMap[hw]) hwMap[hw] = [];
+      hwMap[hw].push(r);
+    });
+
+    var hwLines = Object.keys(hwMap).sort().map(function(hw) {
+      var hr = hwMap[hw];
+      var hsc = _statusCounts(hr);
+      return '<div style="display:flex;align-items:center;gap:0.5rem">'
+        + '<span style="font-size:0.68rem;color:var(--text-label);width:76px;flex-shrink:0;text-align:right">' + hw + '</span>'
+        + '<div style="width:90px;flex-shrink:0">' + _stackBar(hsc, 6, 2) + '</div>'
+        + '<span style="font-size:0.68rem">' + _countBadges(hsc) + '</span>'
+        + '</div>';
+    }).join('');
+
+    html += '<div style="margin-bottom:0.85rem;padding:0.8rem 1rem;border-radius:6px;background:var(--bg-card);border:1px solid ' + (warn?'rgba(248,113,113,0.2)':'var(--border)') + '">'
+      + '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.55rem">'
+      + '<div style="width:130px;text-align:right;font-size:0.84rem;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0">' + m + '</div>'
+      + '<div style="flex:1;min-width:0"><div style="width:' + barPct + '%;min-width:4px">' + _stackBar(sc, 14, 4) + '</div></div>'
+      + '<div style="font-size:0.72rem;color:var(--text-muted);flex-shrink:0;text-align:right">'
+      + total + ' wl' + (warn ? '&nbsp;&nbsp;<span style="color:#f87171">⚠ ' + sc.ns + ' idle</span>' : '')
+      + '</div>'
+      + '</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:0.4rem 1.25rem;margin-left:138px">' + hwLines + '</div>'
+      + '</div>';
+  });
+  html += '</div>';
+  html += _legend();
 
   document.getElementById('summary-content').innerHTML = html;
 }
