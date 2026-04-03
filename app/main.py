@@ -22,6 +22,7 @@ from app.routers import workloads as workloads_router, configs, team, auth_route
 from app.routers import breadth_studies as breadth_studies_router
 from app.routers import devzone as devzone_router
 from app.routers import sentinel as sentinel_router
+from app.routers import requests as requests_router
 from app.routers.workloads import _to_row
 
 app = FastAPI(title="inf-hub")
@@ -69,6 +70,7 @@ app.include_router(auth_router.router)
 app.include_router(breadth_studies_router.router)
 app.include_router(devzone_router.router)
 app.include_router(sentinel_router.router)
+app.include_router(requests_router.router)
 
 _scheduler = BackgroundScheduler(daemon=True)
 
@@ -141,6 +143,7 @@ def index(
     model: str = None,
     hardware: str = None,
     status: str = None,
+    pic: str = None,
     q: str = None,
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
@@ -155,6 +158,7 @@ def index(
         "precision": sorted(set(r.precision for r in all_rows if r.precision)),
         "scenario": sorted(set(r.scenario for r in all_rows if r.scenario)),
         "seqlens": sorted(set(r.seqlens for r in all_rows if r.seqlens)),
+        "pic": sorted(set(r.pic for r in all_rows if r.pic)),
     }
 
     # Apply filters
@@ -165,6 +169,8 @@ def index(
         rows = [r for r in rows if r.hardware == hardware]
     if status:
         rows = [r for r in rows if r.status == status]
+    if pic:
+        rows = [r for r in rows if r.pic == pic]
     if q:
         q_lower = q.lower()
         rows = [r for r in rows if any(
@@ -197,7 +203,7 @@ def index(
         "scenario": r.scenario, "seqlens": r.seqlens,
         "status": r.status, "pic": r.pic, "priority": r.priority,
         "nv_tps": r.nv_tps, "amd_tps": r.amd_tps, "gap_pct": r.gap_pct,
-        "notes": r.notes,
+        "notes": r.notes, "last_run_date": r.last_run_date,
     } for r in rows_sorted])
 
     stats = {
@@ -212,7 +218,7 @@ def index(
         "request": request,
         "tree": tree,
         "filter_options": filter_options,
-        "filters": {"model": model, "hardware": hardware, "status": status, "q": q},
+        "filters": {"model": model, "hardware": hardware, "status": status, "pic": pic, "q": q},
         "stats": stats,
         "rows_json": rows_json,
         "user": user,

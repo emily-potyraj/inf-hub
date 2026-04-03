@@ -4,13 +4,13 @@
 
 {# ── Tab switcher ── #}
 <div class="flex gap-1 mb-5" style="border-bottom:1px solid var(--border);padding-bottom:0">
-  <button id="tab-btn-summary" onclick="switchTab('summary')"
-          style="padding:6px 16px;border:none;border-bottom:2px solid var(--green);background:transparent;color:var(--text);font-size:0.85rem;font-weight:600;cursor:pointer;margin-bottom:-1px">
-    Summary
-  </button>
   <button id="tab-btn-table" onclick="switchTab('table')"
-          style="padding:6px 16px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text-muted);font-size:0.85rem;cursor:pointer;margin-bottom:-1px">
+          style="padding:6px 16px;border:none;border-bottom:2px solid var(--green);background:transparent;color:var(--text);font-size:0.85rem;font-weight:600;cursor:pointer;margin-bottom:-1px">
     Table
+  </button>
+  <button id="tab-btn-summary" onclick="switchTab('summary')"
+          style="padding:6px 16px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text-muted);font-size:0.85rem;cursor:pointer;margin-bottom:-1px">
+    Summary
   </button>
   <button id="tab-btn-tree" onclick="switchTab('tree')"
           style="padding:6px 16px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text-muted);font-size:0.85rem;cursor:pointer;margin-bottom:-1px">
@@ -185,12 +185,12 @@
 </div>{# end tab-tree #}
 
 {# ── Summary tab ── #}
-<div id="tab-summary">
+<div id="tab-summary" style="display:none">
   <div id="summary-content"></div>
 </div>
 
 {# ── Table tab ── #}
-<div id="tab-table" style="display:none">
+<div id="tab-table">
   <div id="table-content"></div>
 </div>
 
@@ -215,7 +215,7 @@ function switchTab(tab) {
   if (tab === 'table'   && !_tableBuilt)   { buildTable();   _tableBuilt   = true; }
 }
 // Summary is the default tab — build it on load
-switchTab('summary');
+switchTab('table');
 
 // ── Excel-style table ──
 var _tableRows = null;
@@ -233,9 +233,10 @@ var _tableCols = [
   {key:'status',    label:'Status'},
   {key:'pic',       label:'PIC'},
   {key:'priority',  label:'Priority'},
-  {key:'nv_tps',    label:'NV TPS'},
-  {key:'amd_tps',   label:'AMD TPS'},
-  {key:'gap_pct',   label:'Gap %'},
+  {key:'nv_tps',        label:'NV TPS'},
+  {key:'amd_tps',       label:'AMD TPS'},
+  {key:'gap_pct',       label:'Gap %'},
+  {key:'last_run_date', label:'Date last run'},
 ];
 
 function buildTable() {
@@ -442,60 +443,10 @@ function buildSummary() {
   }
 
   // ─────────────────────────────────────────────────
-  // OPTION 1: Model Coverage Scorecards
+  // OPTION 1: Hardware × Model Matrix
   // ─────────────────────────────────────────────────
-  html += _sectionHdr(1, 'Model Coverage', 'Each card lists every hw/framework/precision stack and its status — spot untouched stacks at a glance');
-
-  html += '<div style="display:flex;flex-wrap:wrap;gap:0.75rem">';
-  models.forEach(function(m) {
-    var mr = modelRows[m] || [];
-    var total = mr.length;
-    var sc = _statusCounts(mr);
-    var allDone = sc.pub === total;
-    var cardBorder = allDone ? C_PUB : sc.ns === total ? '#333' : 'var(--border)';
-
-    // Group by hw · fw · precision
-    var stackMap = {};
-    mr.forEach(function(r) {
-      var key = [r.hardware||'?', r.framework||'?', r.precision||'?'].join(' · ');
-      if (!stackMap[key]) stackMap[key] = [];
-      stackMap[key].push(r);
-    });
-
-    var stackLines = Object.keys(stackMap).map(function(key) {
-      var sr = stackMap[key];
-      var best = _bestStatus(sr);
-      var icon = best==='pub'?'✓' : best==='fly'?'⟳' : best==='cfg'?'⚙' : '○';
-      var ic   = best==='pub'?C_PUB : best==='fly'?CT_FLY : best==='cfg'?CT_CFG : '#3a3a3a';
-      // Show scenario coverage for this stack
-      var scenarios = sr.map(function(r){return (r.scenario||'') + (r.seqlens?' '+r.seqlens:'');}).filter(Boolean);
-      var scenStr = scenarios.length <= 3 ? scenarios.join(', ') : scenarios.slice(0,3).join(', ') + ' +' + (scenarios.length-3);
-      return '<div style="display:flex;align-items:flex-start;gap:0.4rem;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04)">'
-        + '<span style="color:' + ic + ';font-size:0.75rem;flex-shrink:0;margin-top:1px">' + icon + '</span>'
-        + '<div style="min-width:0">'
-        + '<div style="font-size:0.73rem;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + key + '</div>'
-        + (scenStr ? '<div style="font-size:0.65rem;color:var(--text-label)">' + scenStr + '</div>' : '')
-        + '</div>'
-        + (sr.length > 1 ? '<span style="font-size:0.65rem;color:#444;flex-shrink:0;margin-left:auto">×' + sr.length + '</span>' : '')
-        + '</div>';
-    }).join('');
-
-    html += '<div style="width:256px;padding:0.9rem 1rem;border-radius:8px;border:1px solid ' + cardBorder + ';background:var(--bg-card)">'
-      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.45rem">'
-      + '<div style="font-weight:700;font-size:0.88rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + m + '</div>'
-      + '<div style="font-size:0.68rem;color:var(--text-label);flex-shrink:0;margin-left:0.5rem">' + total + ' wl</div>'
-      + '</div>'
-      + _stackBar(sc, 6, 3)
-      + '<div style="font-size:0.68rem;margin:0.35rem 0 0.6rem">' + _countBadges(sc) + '</div>'
-      + '<div>' + stackLines + '</div>'
-      + '</div>';
-  });
-  html += '</div>';
-
-  // ─────────────────────────────────────────────────
-  // OPTION 2: Hardware × Model Matrix
-  // ─────────────────────────────────────────────────
-  html += _sectionHdr(2, 'Hardware × Model Matrix', 'Full status breakdown per model × hardware — shows count, progress bar, and frameworks tested');
+  html += _sectionHdr(1, 'Hardware × Model Matrix', 'Full status breakdown per model × hardware — shows count, progress bar, and frameworks tested');
+  html += '<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:1rem;font-style:italic">Click-through deep dive coming soon.</div>';
 
   html += '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:0.8rem">';
   html += '<thead><tr>'
@@ -535,9 +486,9 @@ function buildSummary() {
   html += _legend();
 
   // ─────────────────────────────────────────────────
-  // OPTION 3: Seqlen × Model Coverage
+  // OPTION 2: Seqlen × Model Coverage
   // ─────────────────────────────────────────────────
-  html += _sectionHdr(3, 'Seqlen × Model Coverage', 'Status breakdown in every model × context-length cell — find the gaps and partial coverage');
+  html += _sectionHdr(2, 'Seqlen × Model Coverage', 'Status breakdown in every model × context-length cell — find the gaps and partial coverage');
 
   var allSeqlens = [];
   var allSeqSet = {};
@@ -587,9 +538,9 @@ function buildSummary() {
     + '<div style="font-size:0.72rem;color:var(--text-label);margin-top:0.6rem">· = no data. ✓ published · ⟳ in flight · ⚙ config search · ○ not started</div>';
 
   // ─────────────────────────────────────────────────
-  // OPTION 4: Effort Allocation
+  // OPTION 3: Effort Allocation
   // ─────────────────────────────────────────────────
-  html += _sectionHdr(4, 'Effort Allocation', 'Workloads per model with per-hardware breakdown — identify over-commitment and idle hardware');
+  html += _sectionHdr(3, 'Effort Allocation', 'Workloads per model with per-hardware breakdown — identify over-commitment and idle hardware');
 
   var maxTotal = Math.max.apply(null, models.map(function(m){ return modelCount[m]; }).concat([1]));
   html += '<div style="max-width:820px">';
@@ -643,6 +594,56 @@ function buildSummary() {
   });
   html += '</div>';
   html += _legend();
+
+  // ─────────────────────────────────────────────────
+  // OPTION 4: Model Coverage Scorecards
+  // ─────────────────────────────────────────────────
+  html += _sectionHdr(4, 'Model Coverage', 'Each card lists every hw/framework/precision stack and its status — spot untouched stacks at a glance');
+
+  html += '<div style="display:flex;flex-wrap:wrap;gap:0.75rem">';
+  models.forEach(function(m) {
+    var mr = modelRows[m] || [];
+    var total = mr.length;
+    var sc = _statusCounts(mr);
+    var allDone = sc.pub === total;
+    var cardBorder = allDone ? C_PUB : sc.ns === total ? '#333' : 'var(--border)';
+
+    // Group by hw · fw · precision
+    var stackMap = {};
+    mr.forEach(function(r) {
+      var key = [r.hardware||'?', r.framework||'?', r.precision||'?'].join(' · ');
+      if (!stackMap[key]) stackMap[key] = [];
+      stackMap[key].push(r);
+    });
+
+    var stackLines = Object.keys(stackMap).map(function(key) {
+      var sr = stackMap[key];
+      var best = _bestStatus(sr);
+      var icon = best==='pub'?'✓' : best==='fly'?'⟳' : best==='cfg'?'⚙' : '○';
+      var ic   = best==='pub'?C_PUB : best==='fly'?CT_FLY : best==='cfg'?CT_CFG : '#3a3a3a';
+      var scenarios = sr.map(function(r){return (r.scenario||'') + (r.seqlens?' '+r.seqlens:'');}).filter(Boolean);
+      var scenStr = scenarios.length <= 3 ? scenarios.join(', ') : scenarios.slice(0,3).join(', ') + ' +' + (scenarios.length-3);
+      return '<div style="display:flex;align-items:flex-start;gap:0.4rem;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04)">'
+        + '<span style="color:' + ic + ';font-size:0.75rem;flex-shrink:0;margin-top:1px">' + icon + '</span>'
+        + '<div style="min-width:0">'
+        + '<div style="font-size:0.73rem;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + key + '</div>'
+        + (scenStr ? '<div style="font-size:0.65rem;color:var(--text-label)">' + scenStr + '</div>' : '')
+        + '</div>'
+        + (sr.length > 1 ? '<span style="font-size:0.65rem;color:#444;flex-shrink:0;margin-left:auto">×' + sr.length + '</span>' : '')
+        + '</div>';
+    }).join('');
+
+    html += '<div style="width:256px;padding:0.9rem 1rem;border-radius:8px;border:1px solid ' + cardBorder + ';background:var(--bg-card)">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.45rem">'
+      + '<div style="font-weight:700;font-size:0.88rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + m + '</div>'
+      + '<div style="font-size:0.68rem;color:var(--text-label);flex-shrink:0;margin-left:0.5rem">' + total + ' wl</div>'
+      + '</div>'
+      + _stackBar(sc, 6, 3)
+      + '<div style="font-size:0.68rem;margin:0.35rem 0 0.6rem">' + _countBadges(sc) + '</div>'
+      + '<div>' + stackLines + '</div>'
+      + '</div>';
+  });
+  html += '</div>';
 
   document.getElementById('summary-content').innerHTML = html;
 }

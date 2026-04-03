@@ -56,6 +56,7 @@ def _to_row(w: Workload) -> WorkloadRow:
     d["gap_pct"] = _compute_gap(w.nv_tps, w.amd_tps)
     if w.last_updated:
         d["last_updated"] = w.last_updated.isoformat()
+    d["last_run_date"] = w.last_run_date.isoformat() if w.last_run_date else None
     d["amd_tps_source"] = w.amd_tps_source
     d["amd_tps_sentinel_value"] = w.amd_tps_sentinel_value
     d["amd_tps_synced_at"] = w.amd_tps_synced_at.isoformat() if w.amd_tps_synced_at else None
