@@ -4,12 +4,10 @@
 
 <div class="flex items-center justify-between mb-5">
   <h2 class="font-metric font-bold" style="font-size:1.3rem;color:var(--text);letter-spacing:0.03em">Requests</h2>
-  {% if user %}
   <button onclick="openNewRequestModal()"
           style="background:var(--green);color:#000;font-weight:700;border:none;border-radius:5px;padding:6px 16px;font-size:0.85rem;cursor:pointer;letter-spacing:0.02em">
-    + New Request
+    + Request
   </button>
-  {% endif %}
 </div>
 
 {# ── Section: New ── #}
@@ -232,7 +230,6 @@
 </div>
 
 {# ── New Request Modal ── #}
-{% if user %}
 <div id="new-request-modal"
      style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:200;align-items:center;justify-content:center">
   <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:2rem;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto">
@@ -301,7 +298,6 @@
     </form>
   </div>
 </div>
-{% endif %}
 
 <script>
 // ── Section collapse ──
@@ -335,7 +331,6 @@ function patchRequest(id, field, value) {
   });
 }
 
-{% if user %}
 // ── New Request modal ──
 function openNewRequestModal() {
   document.getElementById('nr-model').value = '';
@@ -390,7 +385,6 @@ document.getElementById('new-request-form').addEventListener('submit', function(
 document.getElementById('new-request-modal').addEventListener('click', function(e) {
   if (e.target === this) closeNewRequestModal();
 });
-{% endif %}
 </script>
 
 {% endblock %}
