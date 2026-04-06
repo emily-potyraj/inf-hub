@@ -211,12 +211,56 @@
 </div>
 
 {# ── Table tab ── #}
-<div id="tab-table">
+<div id="tab-table" style="position:relative">
   <div id="table-content"></div>
+
+  <button id="comment-fab" onclick="openCommentPanel()"
+          style="display:none;position:fixed;bottom:24px;right:24px;z-index:400;background:var(--green);color:#000;font-weight:700;border:none;border-radius:20px;padding:8px 16px;font-size:0.82rem;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4)">
+    💬 <span id="comment-fab-count">0</span> open
+  </button>
+</div>
+
+<div id="comment-modal-overlay" onclick="if(event.target===this)closeCommentModal()"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:500;align-items:center;justify-content:center">
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;width:480px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;padding:20px;gap:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div id="comment-modal-title" style="font-weight:700;font-size:0.95rem;color:var(--text)"></div>
+        <div id="comment-modal-sub" style="font-size:0.75rem;color:var(--text-muted);margin-top:2px"></div>
+      </div>
+      <button onclick="closeCommentModal()" style="background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;line-height:1">×</button>
+    </div>
+    <div id="comment-thread" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px"></div>
+    <div style="display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--border);padding-top:10px">
+      <div id="comment-reply-context" style="display:none;font-size:0.75rem;color:var(--text-muted);background:var(--bg);padding:4px 8px;border-radius:4px;border-left:2px solid var(--green)">
+        Replying to: <span id="comment-reply-snippet"></span>
+        <button onclick="cancelReply()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;float:right;font-size:0.85rem">✕</button>
+      </div>
+      <textarea id="comment-body-input" rows="3" placeholder="Add a comment…"
+        style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:8px;color:var(--text);font-size:0.82rem;resize:vertical;font-family:inherit"></textarea>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input id="comment-author-input" placeholder="Your name"
+          style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 8px;color:var(--text);font-size:0.8rem;flex:1">
+        <button onclick="submitComment()"
+          style="background:var(--green);color:#000;font-weight:700;border:none;border-radius:5px;padding:6px 14px;font-size:0.82rem;cursor:pointer">Post</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="comment-panel"
+     style="display:none;position:fixed;top:0;right:0;bottom:0;width:380px;max-width:95vw;background:var(--bg-card);border-left:1px solid var(--border);z-index:450;flex-direction:column;overflow:hidden">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border)">
+    <span style="font-weight:700;font-size:0.92rem;color:var(--text)">Open Comments</span>
+    <button onclick="closeCommentPanel()" style="background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer">×</button>
+  </div>
+  <div id="comment-panel-body" style="overflow-y:auto;flex:1;padding:12px 16px;display:flex;flex-direction:column;gap:14px"></div>
 </div>
 
 <script>
 var _allRows = {{ rows_json | safe }};
+var _currentUser = {{ (user | tojson) if user else 'null' }};
+var _commentMap = {};
 
 // ── Tab switching ──
 var _summaryBuilt = false;
@@ -257,11 +301,35 @@ var _tableCols = [
   {key:'amd_tps',       label:'AMD TPS'},
   {key:'gap_pct',       label:'Gap %'},
   {key:'last_run_date', label:'Date last run'},
+  {key:'ibdb_latest_run_at', label:'IBDB Data'},
 ];
+
+function loadComments() {
+  return fetch('/comments?resolved=false')
+    .then(function(res) { return res.json(); })
+    .then(function(comments) {
+      _commentMap = {};
+      comments.forEach(function(c) {
+        if (!_commentMap[c.workload_id]) _commentMap[c.workload_id] = {};
+        _commentMap[c.workload_id][c.field] = true;
+      });
+      var fab = document.getElementById('comment-fab');
+      var ct = document.getElementById('comment-fab-count');
+      if (fab) {
+        if (comments.length > 0) {
+          fab.style.display = 'block';
+          ct.textContent = comments.length;
+        } else {
+          fab.style.display = 'none';
+        }
+      }
+    })
+    .catch(function() { _commentMap = {}; });
+}
 
 function buildTable() {
   _tableRows = _allRows.slice();
-  renderTable();
+  loadComments().then(function() { renderTable(); });
 }
 
 function renderTable() {
@@ -347,7 +415,11 @@ function renderTable() {
         display = 'P' + v;
       }
 
-      html += '<td style="' + style + '">' + display + '</td>';
+      var hasComment = _commentMap[r.id] && _commentMap[r.id][col.key];
+      var indicator = hasComment
+        ? '<span style="position:absolute;top:0;right:0;width:0;height:0;border-style:solid;border-width:0 9px 9px 0;border-color:transparent #76b900 transparent transparent;pointer-events:none"></span>'
+        : '';
+      html += '<td ondblclick="openCommentModal(' + r.id + ',\'' + col.key + '\')" style="' + style + ';position:relative;cursor:pointer">' + indicator + display + '</td>';
     });
     html += '</tr>';
   });
@@ -798,6 +870,167 @@ function _dl(content, filename, mime) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(a.href);
+}
+
+// ── Comments ──
+var _modalWorkloadId = null;
+var _modalField = null;
+var _replyToId = null;
+
+function _getAuthor() {
+  if (_currentUser) return _currentUser.name;
+  return localStorage.getItem('infhub_commenter_name') || '';
+}
+
+function _saveAuthor(name) {
+  if (!_currentUser && name) localStorage.setItem('infhub_commenter_name', name);
+}
+
+function _escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function openCommentModal(workloadId, field) {
+  _modalWorkloadId = workloadId;
+  _modalField = field;
+  _replyToId = null;
+  var row = _allRows.find(function(r) { return r.id === workloadId; });
+  var rowLabel = row ? (row.model + ' / ' + row.hardware) : ('Workload #' + workloadId);
+  document.getElementById('comment-modal-title').textContent = rowLabel;
+  document.getElementById('comment-modal-sub').textContent = 'Field: ' + field.replace(/_/g,' ');
+  document.getElementById('comment-body-input').value = '';
+  document.getElementById('comment-author-input').value = _getAuthor();
+  document.getElementById('comment-reply-context').style.display = 'none';
+  document.getElementById('comment-modal-overlay').style.display = 'flex';
+  _loadThread(workloadId, field);
+}
+
+function closeCommentModal() {
+  document.getElementById('comment-modal-overlay').style.display = 'none';
+  _modalWorkloadId = null; _modalField = null; _replyToId = null;
+}
+
+function _loadThread(workloadId, field) {
+  fetch('/workloads/' + workloadId + '/comments')
+    .then(function(res) { return res.json(); })
+    .then(function(all) {
+      _renderThread(all.filter(function(c) { return c.field === field; }));
+    });
+}
+
+function _renderThread(comments) {
+  var el = document.getElementById('comment-thread');
+  if (!comments.length) {
+    el.innerHTML = '<div style="color:var(--text-muted);font-size:0.82rem;text-align:center;padding:16px 0">No comments yet. Be the first.</div>';
+    return;
+  }
+  var html = '';
+  comments.forEach(function(c) {
+    html += _commentHTML(c, false);
+    (c.replies || []).forEach(function(rep) { html += _commentHTML(rep, true); });
+  });
+  el.innerHTML = html;
+}
+
+function _commentHTML(c, isReply) {
+  var indent = isReply ? 'margin-left:20px;' : '';
+  var faded = c.resolved_at ? 'opacity:0.5;' : '';
+  var badge = c.resolved_at ? '<span style="font-size:0.7rem;color:var(--text-muted);background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin-left:6px">resolved by ' + _escHtml(c.resolved_by||'?') + '</span>' : '';
+  var date = c.created_at ? new Date(c.created_at).toLocaleDateString() : '';
+  var replyBtn = (!isReply && !c.resolved_at) ? '<button onclick="startReply(' + c.id + ',\'' + _escHtml(c.body.slice(0,40)).replace(/\'/g,"\\'") + '\')" style="background:none;border:none;color:var(--text-muted);font-size:0.72rem;cursor:pointer;text-decoration:underline">Reply</button>' : '';
+  var resolveBtn = (!isReply && !c.resolved_at) ? '<button onclick="resolveComment(' + c.id + ')" style="background:none;border:none;color:var(--text-muted);font-size:0.72rem;cursor:pointer;text-decoration:underline;margin-left:6px">Resolve</button>' : '';
+  return '<div style="' + indent + faded + 'background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:8px 10px">'
+    + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">'
+    + '<span style="font-size:0.78rem;font-weight:600;color:var(--green)">' + _escHtml(c.author||'Anonymous') + badge + '</span>'
+    + '<span style="font-size:0.7rem;color:var(--text-muted)">' + date + '</span></div>'
+    + '<div style="font-size:0.82rem;color:var(--text);white-space:pre-wrap">' + _escHtml(c.body) + '</div>'
+    + '<div style="margin-top:6px">' + replyBtn + resolveBtn + '</div></div>';
+}
+
+function startReply(commentId, snippet) {
+  _replyToId = commentId;
+  document.getElementById('comment-reply-snippet').textContent = snippet + (snippet.length >= 40 ? '…' : '');
+  document.getElementById('comment-reply-context').style.display = 'block';
+  document.getElementById('comment-body-input').focus();
+}
+
+function cancelReply() {
+  _replyToId = null;
+  document.getElementById('comment-reply-context').style.display = 'none';
+}
+
+function resolveComment(commentId) {
+  var author = document.getElementById('comment-author-input').value.trim() || _getAuthor() || 'Anonymous';
+  fetch('/comments/' + commentId + '/resolve', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({resolved_by:author})})
+    .then(function() {
+      _loadThread(_modalWorkloadId, _modalField);
+      loadComments().then(function() { renderTable(); });
+    });
+}
+
+function submitComment() {
+  var body = document.getElementById('comment-body-input').value.trim();
+  var author = document.getElementById('comment-author-input').value.trim() || 'Anonymous';
+  if (!body) return;
+  _saveAuthor(author);
+  var url = _replyToId ? '/comments/' + _replyToId + '/replies' : '/workloads/' + _modalWorkloadId + '/comments';
+  var payload = _replyToId ? {body:body,author:author} : {field:_modalField,body:body,author:author};
+  fetch(url, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(function() {
+      document.getElementById('comment-body-input').value = '';
+      cancelReply();
+      _loadThread(_modalWorkloadId, _modalField);
+      loadComments().then(function() { renderTable(); });
+    });
+}
+
+function openCommentPanel() {
+  document.getElementById('comment-panel').style.display = 'flex';
+  _renderPanel();
+}
+
+function closeCommentPanel() {
+  document.getElementById('comment-panel').style.display = 'none';
+}
+
+function _renderPanel() {
+  fetch('/comments?resolved=false')
+    .then(function(res) { return res.json(); })
+    .then(function(comments) {
+      var el = document.getElementById('comment-panel-body');
+      if (!comments.length) { el.innerHTML = '<div style="color:var(--text-muted);font-size:0.82rem;text-align:center;padding:24px 0">No open comments</div>'; return; }
+      var byWl = {};
+      comments.forEach(function(c) { if (!byWl[c.workload_id]) byWl[c.workload_id]=[]; byWl[c.workload_id].push(c); });
+      var html = '';
+      Object.keys(byWl).forEach(function(wid) {
+        var row = _allRows.find(function(r) { return r.id == wid; });
+        var label = row ? (row.model + ' · ' + row.hardware) : ('Workload #' + wid);
+        html += '<div><div style="font-size:0.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">' + _escHtml(label) + '</div>';
+        byWl[wid].forEach(function(c) {
+          var colLabel = c.field.replace(/_/g,' ');
+          var date = c.created_at ? new Date(c.created_at).toLocaleDateString() : '';
+          html += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:8px 10px;margin-bottom:6px">'
+            + '<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:0.72rem;color:var(--text-muted)">' + _escHtml(colLabel) + '</span><span style="font-size:0.7rem;color:var(--text-muted)">' + date + '</span></div>'
+            + '<div style="font-size:0.82rem;color:var(--green);font-weight:600">' + _escHtml(c.author||'Anonymous') + '</div>'
+            + '<div style="font-size:0.82rem;color:var(--text);white-space:pre-wrap;margin-top:2px">' + _escHtml(c.body) + '</div>';
+          (c.replies||[]).forEach(function(rep) {
+            html += '<div style="margin-left:14px;margin-top:4px;font-size:0.78rem;color:var(--text-muted)"><span style="color:var(--green)">' + _escHtml(rep.author||'Anonymous') + ':</span> ' + _escHtml(rep.body) + '</div>';
+          });
+          html += '<div style="margin-top:6px;display:flex;gap:8px">'
+            + '<button onclick="openCommentModal(' + c.workload_id + ',\'' + c.field + '\')" style="background:none;border:none;color:var(--text-muted);font-size:0.72rem;cursor:pointer;text-decoration:underline">Open thread</button>'
+            + '<button onclick="_panelResolve(' + c.id + ')" style="background:none;border:none;color:var(--text-muted);font-size:0.72rem;cursor:pointer;text-decoration:underline">Resolve</button>'
+            + '</div></div>';
+        });
+        html += '</div>';
+      });
+      el.innerHTML = html;
+    });
+}
+
+function _panelResolve(commentId) {
+  var author = _getAuthor() || 'Anonymous';
+  fetch('/comments/' + commentId + '/resolve', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({resolved_by:author})})
+    .then(function() { loadComments().then(function() { renderTable(); _renderPanel(); }); });
 }
 
 switchTab('table');
