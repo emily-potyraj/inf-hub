@@ -46,6 +46,13 @@
     {% endif %}
   </div>
   <div class="flex gap-2 items-center" style="flex-wrap:wrap">
+    <div id="ibdb-sync-widget" style="display:flex;align-items:center;gap:8px;font-size:0.78rem;color:var(--text-muted)">
+      <span id="ibdb-sync-status">Checking IBDB sync...</span>
+      <button onclick="triggerIbdbSync()"
+        style="padding:3px 10px;border-radius:5px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:0.78rem;cursor:pointer">
+        Sync Now
+      </button>
+    </div>
     <button onclick="exportCSV()" class="badge badge-muted" style="cursor:pointer;padding:4px 10px;font-size:0.78rem">Export CSV</button>
     <button onclick="exportJSON()" class="badge badge-muted" style="cursor:pointer;padding:4px 10px;font-size:0.78rem">Export JSON</button>
     <button onclick="toggleView()" id="view-toggle-btn" class="badge badge-muted" style="cursor:pointer;padding:4px 10px;font-size:0.78rem">Matrix view</button>
@@ -400,6 +407,15 @@ function renderTable() {
       var v = r[col.key];
       var display = v == null ? '' : v;
       var style = 'padding:5px 10px;white-space:nowrap;color:var(--text)';
+
+      if (col.key === 'ibdb_latest_run_at') {
+        var val = r[col.key];
+        var ibdbDisplay = val
+          ? '<span style="color:#22c55e;font-size:0.78rem">' + val.replace('T',' ').slice(0,16) + '</span>'
+          : '<span style="color:#6b7280">—</span>';
+        html += '<td ondblclick="openCommentModal(' + r.id + ',\'' + col.key + '\')" style="' + style + ';position:relative;cursor:pointer">' + ibdbDisplay + '</td>';
+        return;
+      }
 
       if (col.key === 'status' && v) {
         var c = STATUS_COLOR[v] || '#666';
@@ -1034,6 +1050,40 @@ function _panelResolve(commentId) {
 }
 
 switchTab('table');
+
+function loadIbdbStatus() {
+  fetch('/ibdb/status')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var el = document.getElementById('ibdb-sync-status');
+      if (!el) return;
+      if (data.timestamp) {
+        var dt = new Date(data.timestamp);
+        var diffMin = Math.round((Date.now() - dt.getTime()) / 60000);
+        var ago = diffMin < 1 ? 'just now' : diffMin === 1 ? '1 min ago' : (diffMin + ' min ago');
+        el.textContent = 'IBDB synced ' + ago + ' (' + data.with_data + '/' + data.synced + ' with data)';
+      } else {
+        el.textContent = 'IBDB not yet synced';
+      }
+    })
+    .catch(function() {
+      var el = document.getElementById('ibdb-sync-status');
+      if (el) el.textContent = 'IBDB status unavailable';
+    });
+}
+
+function triggerIbdbSync() {
+  var el = document.getElementById('ibdb-sync-status');
+  if (el) el.textContent = 'Syncing...';
+  fetch('/ibdb/sync', {method:'POST'})
+    .then(function() { loadIbdbStatus(); })
+    .catch(function() {
+      if (el) el.textContent = 'Sync failed';
+    });
+}
+
+loadIbdbStatus();
+setInterval(loadIbdbStatus, 60000);
 </script>
 
 {% endblock %}
