@@ -57,8 +57,8 @@ class WorkloadRow(BaseModel):
     sentinel_summary:       Optional[str]   = None
     sentinel_image_url:     Optional[str]   = None
     sentinel_synced_at:     Optional[str]   = None  # ISO string
-    ibdb_latest_run_at: Optional[str] = None   # ISO string
-    ibdb_synced_at:     Optional[str] = None   # ISO string
+    ibdb_latest_run_at:  Optional[str]   = None  # ISO string
+    ibdb_synced_at:      Optional[str]   = None  # ISO string
     last_run_date:          Optional[str]   = None  # ISO string
     last_updated: Optional[str]
 

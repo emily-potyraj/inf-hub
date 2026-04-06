@@ -40,8 +40,8 @@ class Workload(Base):
     sentinel_summary        = Column(Text)
     sentinel_image_url      = Column(Text)
     sentinel_synced_at      = Column(DateTime)
-    ibdb_latest_run_at = Column(DateTime)   # latest run date from IBDB; null = no data
-    ibdb_synced_at     = Column(DateTime)   # when this workload was last checked
+    ibdb_latest_run_at  = Column(DateTime)   # latest run date from IBDB; null = no data
+    ibdb_synced_at      = Column(DateTime)   # when this workload was last checked
     dl_perf_published = Column(Text)
     infmax_submitted = Column(Text)
     nvmax_recipe_url = Column(Text)
