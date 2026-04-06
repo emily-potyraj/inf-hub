@@ -1074,11 +1074,17 @@ function loadIbdbStatus() {
 
 function triggerIbdbSync() {
   var el = document.getElementById('ibdb-sync-status');
+  var btn = document.querySelector('#ibdb-sync-widget button');
   if (el) el.textContent = 'Syncing...';
+  if (btn) btn.disabled = true;
   fetch('/ibdb/sync', {method:'POST'})
+    .then(function(r) { if (!r.ok) throw new Error(r.status); return r; })
     .then(function() { loadIbdbStatus(); })
     .catch(function() {
       if (el) el.textContent = 'Sync failed';
+    })
+    .finally(function() {
+      if (btn) btn.disabled = false;
     });
 }
 
