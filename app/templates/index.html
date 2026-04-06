@@ -217,10 +217,6 @@
 
 <script>
 var _allRows = {{ rows_json | safe }};
-var _currentUser = {{ (user | tojson) if user else 'null' }};
-
-// _commentMap[workload_id][field] = true when that cell has ≥1 open comment
-var _commentMap = {};
 
 // ── Tab switching ──
 var _summaryBuilt = false;
@@ -263,32 +259,9 @@ var _tableCols = [
   {key:'last_run_date', label:'Date last run'},
 ];
 
-function loadComments() {
-  return fetch('/comments?resolved=false')
-    .then(function(res) { return res.json(); })
-    .then(function(comments) {
-      _commentMap = {};
-      comments.forEach(function(c) {
-        if (!_commentMap[c.workload_id]) _commentMap[c.workload_id] = {};
-        _commentMap[c.workload_id][c.field] = true;
-      });
-      var fab = document.getElementById('comment-fab');
-      var ct = document.getElementById('comment-fab-count');
-      if (fab) {
-        if (comments.length > 0) {
-          fab.style.display = 'block';
-          ct.textContent = comments.length;
-        } else {
-          fab.style.display = 'none';
-        }
-      }
-    })
-    .catch(function() { _commentMap = {}; });
-}
-
 function buildTable() {
   _tableRows = _allRows.slice();
-  loadComments().then(function() { renderTable(); });
+  renderTable();
 }
 
 function renderTable() {
@@ -358,7 +331,7 @@ function renderTable() {
     _tableCols.forEach(function(col) {
       var v = r[col.key];
       var display = v == null ? '' : v;
-      var style = 'padding:5px 10px;white-space:nowrap;color:var(--text);position:relative;cursor:pointer';
+      var style = 'padding:5px 10px;white-space:nowrap;color:var(--text)';
 
       if (col.key === 'status' && v) {
         var c = STATUS_COLOR[v] || '#666';
@@ -374,11 +347,7 @@ function renderTable() {
         display = 'P' + v;
       }
 
-      var hasComment = _commentMap[r.id] && _commentMap[r.id][col.key];
-      var indicator = hasComment
-        ? '<span style="position:absolute;top:0;right:0;width:0;height:0;border-style:solid;border-width:0 9px 9px 0;border-color:transparent #76b900 transparent transparent;pointer-events:none"></span>'
-        : '';
-      html += '<td ondblclick="openCommentModal(' + r.id + ',\'' + col.key + '\')" style="' + style + '">' + indicator + display + '</td>';
+      html += '<td style="' + style + '">' + display + '</td>';
     });
     html += '</tr>';
   });
