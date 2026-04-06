@@ -164,3 +164,30 @@ class Request(Base):
     submitted_by = Column(Text)
     created_at   = Column(DateTime, default=_now)
     updated_at   = Column(DateTime, default=_now, onupdate=_now)
+
+
+class BenchmarkVersion(Base):
+    __tablename__ = "benchmark_versions"
+    benchmark_version = Column(Text, primary_key=True)
+    benchmark_group   = Column(Text, nullable=False)
+    display_name      = Column(Text, nullable=False)
+    is_active         = Column(Integer, default=1)
+    submission_date   = Column(Text)
+    publication_date  = Column(Text)
+    sort_order        = Column(Integer, default=0)
+
+
+class BenchmarkSubmission(Base):
+    __tablename__ = "benchmark_submissions"
+    __table_args__ = (
+        UniqueConstraint("benchmark_version", "chip", "model", "seqlen", name="uq_submission"),
+    )
+    id                = Column(Integer, primary_key=True)
+    benchmark_version = Column(Text, ForeignKey("benchmark_versions.benchmark_version"), nullable=False)
+    chip              = Column(Text, nullable=False)
+    model             = Column(Text, nullable=False)
+    seqlen            = Column(Text, nullable=False)
+    status            = Column(Text, nullable=False, default="undecided")
+    notes             = Column(Text)
+    updated_by        = Column(Text)
+    updated_at        = Column(DateTime)

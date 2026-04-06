@@ -19,6 +19,7 @@
         <nav class="flex gap-1">
           <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">Coverage</a>
           <a href="/requests" class="nav-link {% if request.url.path == '/requests' %}active{% endif %}">Requests</a>
+          <a href="/roadmap" class="nav-link {% if request.url.path == '/roadmap' %}active{% endif %}">Roadmap</a>
           {# hidden: IBDB→JSON, Team, Overview nav links — routes still active #}
           {# <a href="/devzone" class="nav-link {% if request.url.path.startswith('/devzone') %}active{% endif %}">IBDB → JSON</a> #}
           {# <a href="/team" class="nav-link {% if request.url.path == '/team' %}active{% endif %}">Team</a> #}

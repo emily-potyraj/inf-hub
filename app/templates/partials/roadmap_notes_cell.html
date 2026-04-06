@@ -1,0 +1,10 @@
+{#
+  Rendered for the notes icon/tooltip area of a single submission cell.
+  Context:
+    submission  — dict with keys: id, notes
+#}
+<span id="roadmap-notes-{{ submission.id }}" class="roadmap-notes-area">
+  {% if submission.notes %}
+    <span class="roadmap-notes-icon" title="{{ submission.notes }}">&#128203;</span>
+  {% endif %}
+</span>

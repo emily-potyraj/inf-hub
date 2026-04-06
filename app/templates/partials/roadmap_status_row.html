@@ -1,0 +1,14 @@
+{#
+  Rendered for a single (model, seqlen) row within a chip column group.
+  Context:
+    submission  — BenchmarkSubmission-like dict with keys: id, seqlen, status, notes
+#}
+<div id="roadmap-status-{{ submission.id }}" class="roadmap-cell-inner">
+  {% if submission.status == "targeting" %}
+    <span class="badge badge-green">targeting</span>
+  {% elif submission.status == "skip" %}
+    <span class="badge badge-muted">skip</span>
+  {% else %}
+    <span class="badge badge-blue">undecided</span>
+  {% endif %}
+</div>

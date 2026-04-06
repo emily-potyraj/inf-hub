@@ -1,0 +1,13 @@
+{#
+  Rendered for the submission_date and publication_date chips of a benchmark version.
+  Context:
+    version  — dict with keys: benchmark_version, submission_date, publication_date
+#}
+<span id="roadmap-dates-{{ version.benchmark_version }}" class="roadmap-date-chips">
+  <span class="roadmap-date-chip {% if version.submission_date %}roadmap-date-set{% else %}roadmap-date-empty{% endif %}">
+    Sub: {{ version.submission_date or "—" }}
+  </span>
+  <span class="roadmap-date-chip {% if version.publication_date %}roadmap-date-set{% else %}roadmap-date-empty{% endif %}">
+    Pub: {{ version.publication_date or "—" }}
+  </span>
+</span>
