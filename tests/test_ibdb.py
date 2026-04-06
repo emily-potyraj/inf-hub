@@ -60,6 +60,7 @@ def test_sync_writes_log_file(auth_client, tmp_path, monkeypatch):
     log = json.loads(log_file.read_text())
     assert "timestamp" in log
     assert "synced" in log
+    assert "with_data" in log
 
 
 def test_sync_requires_auth(client):
