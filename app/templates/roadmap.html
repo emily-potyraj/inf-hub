@@ -1,0 +1,884 @@
+{% extends "base.html" %}
+{% block title %}inf-hub: Roadmap{% endblock %}
+
+{% block content %}
+<style>
+  /* ── Roadmap-scoped styles ──────────────────────────────────────── */
+  .bench-group {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  /* Section headers */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    cursor: pointer;
+    user-select: none;
+    transition: filter 0.15s;
+  }
+  .section-header:hover { filter: brightness(1.08); }
+  .section-header-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .section-title {
+    font-family: 'Rajdhani', 'Inter', system-ui, sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .section-arrow {
+    font-size: 0.8rem;
+    transition: transform 0.2s;
+    color: inherit;
+    opacity: 0.7;
+  }
+  .section-arrow.collapsed { transform: rotate(-90deg); }
+
+  /* Targeting counter badge */
+  .counter-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    background: rgba(255,255,255,0.1);
+  }
+
+  /* Date chips */
+  .date-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: inherit;
+    opacity: 0.85;
+    cursor: pointer;
+    position: relative;
+  }
+  .date-chip input[type="date"] {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+  }
+
+  /* Version tabs */
+  .version-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0 18px;
+    background: rgba(0,0,0,0.15);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .version-tab {
+    padding: 8px 14px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    border: none;
+    background: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+    color: var(--text-muted);
+    position: relative;
+  }
+  .version-tab:hover { color: var(--text); }
+  .version-tab.active { color: inherit; /* set per-group via inline */ }
+  .version-tab.stub {
+    cursor: default;
+    opacity: 0.5;
+    color: var(--text-label);
+  }
+  .version-tab .soon-badge {
+    display: inline-block;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 1px 4px;
+    border-radius: 3px;
+    margin-left: 5px;
+    vertical-align: middle;
+    background: rgba(255,255,255,0.1);
+    color: var(--text-muted);
+  }
+
+  /* Section body */
+  .section-body {
+    background: var(--bg);
+  }
+
+  /* Matrix wrapper */
+  .matrix-wrapper {
+    overflow-x: auto;
+    padding: 16px 18px 20px;
+  }
+  .matrix-grid {
+    display: grid;
+    min-width: max-content;
+    gap: 0;
+  }
+
+  /* Header row (chip names) */
+  .matrix-chip-header {
+    display: contents;
+  }
+  .matrix-corner {
+    /* top-left empty corner */
+  }
+  .chip-label {
+    padding: 6px 10px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-label);
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  /* Model row */
+  .model-label {
+    padding: 8px 10px 8px 0;
+    font-size: 0.80rem;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    display: flex;
+    align-items: flex-start;
+    padding-top: 10px;
+  }
+
+  /* Cell */
+  .matrix-cell {
+    background: #23262d;
+    border: 1px solid #2e333d;
+    border-radius: 5px;
+    margin: 3px;
+    min-width: 130px;
+    position: relative;
+    overflow: hidden;
+    cursor: default;
+  }
+  .matrix-cell.has-notes::after {
+    content: "📝";
+    position: absolute;
+    top: 3px;
+    right: 4px;
+    font-size: 0.65rem;
+    opacity: 0.85;
+    pointer-events: none;
+  }
+
+  /* Seqlen row inside cell */
+  .seqlen-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 3px 7px;
+    font-size: 0.72rem;
+    cursor: pointer;
+    position: relative;
+    min-height: 22px;
+    transition: filter 0.1s;
+  }
+  .seqlen-row:hover { filter: brightness(1.12); }
+  .seqlen-row:not(:last-child) {
+    border-bottom: 1px solid rgba(0,0,0,0.2);
+  }
+
+  /* Status colors — full row backgrounds */
+  .seqlen-row[data-status="tuning_wip"]     { background: rgba(251,191,36,0.18); }
+  .seqlen-row[data-status="submitted"]      { background: rgba(118,185,0,0.18); }
+  .seqlen-row[data-status="published"]      { background: rgba(118,185,0,0.36); }
+  .seqlen-row[data-status="not_targeting"]  { background: rgba(248,113,113,0.16); }
+  .seqlen-row[data-status="undecided"]      { background: transparent; }
+
+  .seqlen-label {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+  .seqlen-row[data-status="tuning_wip"]    .seqlen-label { color: #f5c842; }
+  .seqlen-row[data-status="submitted"]     .seqlen-label { color: #86cc00; }
+  .seqlen-row[data-status="published"]     .seqlen-label { color: #b5f048; }
+  .seqlen-row[data-status="not_targeting"] .seqlen-label { color: #f87171; }
+  .seqlen-row[data-status="undecided"]     .seqlen-label { color: #3a4255; }
+
+  .seqlen-status-text {
+    font-size: 0.64rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .seqlen-row[data-status="tuning_wip"]    .seqlen-status-text { color: #c49a10; }
+  .seqlen-row[data-status="submitted"]     .seqlen-status-text { color: #5a9200; }
+  .seqlen-row[data-status="published"]     .seqlen-status-text { color: #76b900; }
+  .seqlen-row[data-status="not_targeting"] .seqlen-status-text { color: #b94040; }
+  .seqlen-row[data-status="undecided"]     .seqlen-status-text { color: #2e3548; }
+
+  /* Inline status dropdown */
+  .seqlen-row .status-select {
+    display: none;
+    position: absolute;
+    left: 0; top: 100%;
+    z-index: 200;
+    background: #2a2e38;
+    border: 1px solid #4a5568;
+    border-radius: 5px;
+    padding: 4px 0;
+    min-width: 150px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+  .seqlen-row .status-select.open { display: block; }
+  .status-option {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    white-space: nowrap;
+    color: var(--text);
+    background: none;
+    border: none;
+    width: 100%;
+    text-align: left;
+  }
+  .status-option:hover { background: rgba(255,255,255,0.06); }
+
+  /* Empty cell */
+  .matrix-cell-empty {
+    background: #1e2026;
+    border: 1px solid #252830;
+    border-radius: 5px;
+    margin: 3px;
+    min-width: 130px;
+    min-height: 28px;
+    opacity: 0.35;
+  }
+
+  /* No-data placeholder */
+  .no-data-placeholder {
+    padding: 32px 18px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    text-align: center;
+  }
+
+  /* Legend */
+  .roadmap-legend {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 18px 14px;
+    font-size: 0.70rem;
+    color: var(--text-muted);
+    border-top: 1px solid rgba(255,255,255,0.04);
+  }
+  .legend-swatch {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-weight: 600;
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+  }
+  .legend-swatch.tuning_wip    { background: rgba(251,191,36,0.18); color: #f5c842; }
+  .legend-swatch.submitted     { background: rgba(118,185,0,0.18);  color: #86cc00; }
+  .legend-swatch.published     { background: rgba(118,185,0,0.36);  color: #b5f048; }
+  .legend-swatch.not_targeting { background: rgba(248,113,113,0.16); color: #f87171; }
+  .legend-swatch.undecided     { background: rgba(255,255,255,0.04); color: #3a4255; border: 1px solid rgba(255,255,255,0.08); }
+
+  /* Notes modal */
+  #notes-modal {
+    background: #23262d;
+    border: 1px solid #3a3f4d;
+    border-radius: 10px;
+    padding: 0;
+    color: var(--text);
+    max-width: 480px;
+    width: 92vw;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  }
+  #notes-modal::backdrop { background: rgba(0,0,0,0.55); }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .modal-subtitle {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .modal-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 4px;
+  }
+  .modal-close:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .modal-body { padding: 16px 18px; }
+  .modal-textarea {
+    width: 100%;
+    min-height: 100px;
+    background: #1a1c22;
+    border: 1px solid #3a3f4d;
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.83rem;
+    font-family: inherit;
+    padding: 10px 12px;
+    resize: vertical;
+    box-sizing: border-box;
+    outline: none;
+  }
+  .modal-textarea:focus { border-color: #4a5568; }
+  .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 10px 18px 14px;
+  }
+  .btn-primary {
+    background: var(--green);
+    color: #000;
+    font-weight: 700;
+    border: none;
+    border-radius: 5px;
+    padding: 6px 18px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+  }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-secondary {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 5px;
+    padding: 6px 14px;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  .btn-secondary:hover { color: var(--text); border-color: #4a5568; }
+</style>
+
+<div style="padding: 24px 0">
+  <!-- Page header -->
+  <div style="margin-bottom: 24px">
+    <h1 class="font-metric font-bold" style="font-size:1.5rem;color:var(--text);margin-bottom:4px">Roadmap</h1>
+    <p style="color:var(--text-muted);font-size:0.85rem">Benchmark submission tracking across chip × model combinations</p>
+  </div>
+
+  <!-- Accordion sections -->
+  <div id="accordion" style="display:flex;flex-direction:column;gap:14px">
+
+    {% for group in data.groups %}
+
+    {# ── Per-group accent colors ──────────────────────────────────────── #}
+    {% if group.benchmark_group == 'inferenceX' %}
+      {% set accent       = '#76b900' %}
+      {% set accent_dim   = '#5a8c00' %}
+      {% set border_col   = '#3a4a28' %}
+      {% set header_bg    = '#1e2a19' %}
+      {% set group_label  = 'InferenceX' %}
+    {% elif group.benchmark_group == 'mlperf' %}
+      {% set accent       = '#60a5fa' %}
+      {% set accent_dim   = '#3b82f6' %}
+      {% set border_col   = '#1e3a5a' %}
+      {% set header_bg    = '#171f2e' %}
+      {% set group_label  = 'MLPerf' %}
+    {% else %}
+      {% set accent       = '#a78bfa' %}
+      {% set accent_dim   = '#7c5cbf' %}
+      {% set border_col   = '#3a2f4a' %}
+      {% set header_bg    = '#1e1a2a' %}
+      {% set group_label  = 'Artificial Analysis' %}
+    {% endif %}
+
+    {# ── Derive active version for this group ────────────────────────── #}
+    {% set active_version = namespace(v=None) %}
+    {% for version in group.versions %}
+      {% if version.is_active and active_version.v is none %}
+        {% set active_version.v = version %}
+      {% endif %}
+    {% endfor %}
+
+    <div class="bench-group bench-{{ group.benchmark_group }}"
+         style="border-color: {{ border_col }}"
+         id="group-{{ group.benchmark_group }}">
+
+      <!-- Section header -->
+      <div class="section-header"
+           style="background: {{ header_bg }}; border-bottom: 1px solid {{ border_col }}"
+           onclick="toggleSection('{{ group.benchmark_group }}')">
+        <div class="section-header-left">
+          <span class="section-title" style="color: {{ accent }}">{{ group_label }}</span>
+
+          {% if active_version.v %}
+          <!-- Targeting counter -->
+          <span class="counter-badge"
+                id="counter-{{ group.benchmark_group }}"
+                style="color: {{ accent }}; border: 1px solid {{ border_col }}">
+            <span id="counter-targeting-{{ group.benchmark_group }}">{{ active_version.v.targeting_count }}</span>
+            <span style="opacity:0.5;margin:0 3px">/</span>
+            <span id="counter-total-{{ group.benchmark_group }}">{{ active_version.v.total_count }}</span>
+            <span style="margin-left:4px;font-weight:400;opacity:0.7">targeting</span>
+          </span>
+
+          <!-- Date chips — active version only -->
+          {% if active_version.v.submission_date is not none or True %}
+          <span class="date-chip"
+                style="color: {{ accent }}"
+                title="Click to edit submission date"
+                onclick="openDateInput(event, '{{ active_version.v.benchmark_version }}', 'submission')">
+            📅 Sub:&nbsp;<span id="sub-date-{{ active_version.v.benchmark_version }}">{{ active_version.v.submission_date or 'TBD' }}</span>
+            <input type="date"
+                   id="sub-date-input-{{ active_version.v.benchmark_version }}"
+                   value="{{ active_version.v.submission_date or '' }}"
+                   hx-patch="/roadmap/versions/{{ active_version.v.benchmark_version }}/dates"
+                   hx-vals='{"date_type": "submission"}'
+                   hx-trigger="change"
+                   hx-swap="none"
+                   onchange="onDateSaved(this, '{{ active_version.v.benchmark_version }}', 'submission')"
+                   style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none">
+          </span>
+          <span class="date-chip"
+                style="color: {{ accent }}"
+                title="Click to edit publication date"
+                onclick="openDateInput(event, '{{ active_version.v.benchmark_version }}', 'publication')">
+            📅 Pub:&nbsp;<span id="pub-date-{{ active_version.v.benchmark_version }}">{{ active_version.v.publication_date or 'TBD' }}</span>
+            <input type="date"
+                   id="pub-date-input-{{ active_version.v.benchmark_version }}"
+                   value="{{ active_version.v.publication_date or '' }}"
+                   hx-patch="/roadmap/versions/{{ active_version.v.benchmark_version }}/dates"
+                   hx-vals='{"date_type": "publication"}'
+                   hx-trigger="change"
+                   hx-swap="none"
+                   onchange="onDateSaved(this, '{{ active_version.v.benchmark_version }}', 'publication')"
+                   style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none">
+          </span>
+          {% endif %}
+          {% endif %}{# /active_version.v #}
+        </div>
+
+        <span class="section-arrow" id="arrow-{{ group.benchmark_group }}">▼</span>
+      </div>
+
+      <!-- Section body -->
+      <div class="section-body" id="body-{{ group.benchmark_group }}">
+
+        <!-- Version tabs -->
+        <div class="version-tabs" style="border-bottom-color: {{ border_col }}">
+          {% for version in group.versions %}
+          {% if version.is_active %}
+          <button class="version-tab active"
+                  id="tab-{{ version.benchmark_version }}"
+                  style="color: {{ accent }}; border-bottom-color: {{ accent }}"
+                  onclick="switchVersion('{{ group.benchmark_group }}', '{{ version.benchmark_version }}', this, '{{ accent }}')">
+            {{ version.display_name }}
+          </button>
+          {% else %}
+          <button class="version-tab stub" disabled>
+            {{ version.display_name }}
+            <span class="soon-badge">soon</span>
+          </button>
+          {% endif %}
+          {% endfor %}
+        </div>
+
+        <!-- Version matrices -->
+        {% for version in group.versions %}
+        <div id="matrix-{{ version.benchmark_version }}"
+             style="display: {% if version.is_active %}block{% else %}none{% endif %}">
+
+          {% if version.chips and version.models %}
+          <div class="matrix-wrapper">
+            <div class="matrix-grid"
+                 style="grid-template-columns: 160px repeat({{ version.chips | length }}, minmax(140px, 1fr))">
+
+              <!-- Header row: corner + chip labels -->
+              <div class="matrix-corner chip-label" style="border-bottom: 1px solid #2e333d; text-align:left; padding-left:0; color:var(--text-label)">Model</div>
+              {% for chip in version.chips %}
+              <div class="chip-label" style="border-bottom: 1px solid #2e333d; color: {{ accent_dim }}">{{ chip }}</div>
+              {% endfor %}
+
+              <!-- Data rows: one per model -->
+              {% for model in version.models %}
+              <div class="model-label">{{ model }}</div>
+              {% for chip in version.chips %}
+              {% set cell_submissions = version.cells.get(model, {}).get(chip, []) %}
+              {% if cell_submissions %}
+              {% set has_notes_flag = namespace(v=False) %}
+              {% for sub in cell_submissions %}
+                {% if sub.notes %}{% set has_notes_flag.v = True %}{% endif %}
+              {% endfor %}
+              <div class="matrix-cell {% if has_notes_flag.v %}has-notes{% endif %}"
+                   data-bv="{{ version.benchmark_version }}"
+                   data-chip="{{ chip }}"
+                   data-model="{{ model }}"
+                   ondblclick="openNotesModal(this)">
+                {% for sub in cell_submissions %}
+                <div class="seqlen-row"
+                     data-status="{{ sub.status }}"
+                     data-id="{{ sub.id }}"
+                     id="seqlen-row-{{ sub.id }}"
+                     onclick="toggleStatusDropdown(event, this)">
+                  <span class="seqlen-label">{{ sub.seqlen }}</span>
+                  <span class="seqlen-status-text">{{ sub.status | replace('_', ' ') }}</span>
+                  <!-- Inline status dropdown (hidden by default) -->
+                  <div class="status-select" id="dropdown-{{ sub.id }}" onclick="event.stopPropagation()">
+                    {% for opt_val, opt_label in [
+                      ('undecided',     'Undecided'),
+                      ('tuning_wip',    'Tuning WIP'),
+                      ('submitted',     'Submitted'),
+                      ('published',     'Published'),
+                      ('not_targeting', 'Not Targeting')
+                    ] %}
+                    <button class="status-option"
+                            onclick="changeStatus({{ sub.id }}, '{{ opt_val }}', this)">
+                      {{ opt_label }}
+                    </button>
+                    {% endfor %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}
+              <div class="matrix-cell-empty"></div>
+              {% endif %}
+              {% endfor %}{# /chip #}
+              {% endfor %}{# /model #}
+
+            </div>{# /matrix-grid #}
+          </div>{# /matrix-wrapper #}
+
+          {% else %}
+          <div class="no-data-placeholder">
+            No data yet for this version.
+          </div>
+          {% endif %}
+
+          <!-- Legend -->
+          <div class="roadmap-legend">
+            <span style="font-weight:600;color:var(--text-label);margin-right:2px">Status</span>
+            <span style="color:var(--text-label);margin-right:4px">→</span>
+            <span class="legend-swatch tuning_wip">Tuning WIP</span>
+            <span class="legend-swatch submitted">Submitted</span>
+            <span class="legend-swatch published">Published</span>
+            <span class="legend-swatch not_targeting">Not Targeting</span>
+            <span class="legend-swatch undecided">Undecided</span>
+            <span style="margin: 0 4px; color:var(--border)">·</span>
+            <span>📝 notes — dbl-click cell to edit</span>
+          </div>
+
+        </div>{# /matrix-version #}
+        {% endfor %}{# /version #}
+
+      </div>{# /section-body #}
+    </div>{# /bench-group #}
+
+    {% endfor %}{# /group #}
+
+  </div>{# /accordion #}
+</div>
+
+<!-- Notes modal -->
+<dialog id="notes-modal">
+  <div class="modal-header">
+    <div>
+      <div class="modal-title">Cell Notes</div>
+      <div class="modal-subtitle" id="modal-cell-label">—</div>
+    </div>
+    <button class="modal-close" onclick="document.getElementById('notes-modal').close()">✕</button>
+  </div>
+  <div class="modal-body">
+    <textarea class="modal-textarea"
+              id="modal-notes-text"
+              placeholder="Add notes about this chip × model cell…"
+              rows="5"></textarea>
+  </div>
+  <div class="modal-footer">
+    <button class="btn-secondary" onclick="document.getElementById('notes-modal').close()">Cancel</button>
+    <button class="btn-primary" id="modal-save-btn" onclick="saveNotes()">Save Notes</button>
+  </div>
+</dialog>
+
+<script>
+/* ── Section accordion ─────────────────────────────────────────── */
+function toggleSection(group) {
+  var body  = document.getElementById('body-' + group);
+  var arrow = document.getElementById('arrow-' + group);
+  var open  = body.style.display !== 'none';
+  body.style.display  = open ? 'none' : 'block';
+  if (open) {
+    arrow.classList.add('collapsed');
+  } else {
+    arrow.classList.remove('collapsed');
+  }
+}
+
+/* ── Version tab switching ─────────────────────────────────────── */
+function switchVersion(group, benchmarkVersion, clickedTab, accent) {
+  // Hide all matrices in this group
+  var groupEl = document.getElementById('group-' + group);
+  groupEl.querySelectorAll('[id^="matrix-"]').forEach(function(el) {
+    el.style.display = 'none';
+  });
+
+  // Deactivate all tabs in this group
+  groupEl.querySelectorAll('.version-tab:not(.stub)').forEach(function(tab) {
+    tab.classList.remove('active');
+    tab.style.color = '';
+    tab.style.borderBottomColor = 'transparent';
+  });
+
+  // Show selected matrix
+  var matrixEl = document.getElementById('matrix-' + benchmarkVersion);
+  if (matrixEl) matrixEl.style.display = 'block';
+
+  // Activate clicked tab
+  clickedTab.classList.add('active');
+  clickedTab.style.color = accent;
+  clickedTab.style.borderBottomColor = accent;
+
+  // Update counter to reflect newly visible matrix
+  updateCounter(group);
+}
+
+/* ── Status counter update ─────────────────────────────────────── */
+var TARGETING_STATUSES = ['tuning_wip', 'submitted', 'published'];
+
+function updateCounter(group) {
+  var groupEl = document.getElementById('group-' + group);
+  if (!groupEl) return;
+
+  // Find the currently visible matrix
+  var visibleMatrix = null;
+  groupEl.querySelectorAll('[id^="matrix-"]').forEach(function(el) {
+    if (el.style.display !== 'none') visibleMatrix = el;
+  });
+  if (!visibleMatrix) return;
+
+  var allRows = visibleMatrix.querySelectorAll('.seqlen-row');
+  var targeting = 0;
+  var total = allRows.length;
+  allRows.forEach(function(row) {
+    var status = row.getAttribute('data-status');
+    if (TARGETING_STATUSES.indexOf(status) !== -1) targeting++;
+  });
+
+  var tEl = document.getElementById('counter-targeting-' + group);
+  var ttEl = document.getElementById('counter-total-' + group);
+  if (tEl) tEl.textContent = targeting;
+  if (ttEl) ttEl.textContent = total;
+}
+
+/* ── Status dropdown ───────────────────────────────────────────── */
+var _openDropdown = null;
+
+function toggleStatusDropdown(evt, rowEl) {
+  evt.stopPropagation();
+  var dropdown = rowEl.querySelector('.status-select');
+  if (!dropdown) return;
+
+  // Close any other open dropdown
+  if (_openDropdown && _openDropdown !== dropdown) {
+    _openDropdown.classList.remove('open');
+    _openDropdown = null;
+  }
+
+  var isOpen = dropdown.classList.contains('open');
+  if (isOpen) {
+    dropdown.classList.remove('open');
+    _openDropdown = null;
+  } else {
+    dropdown.classList.add('open');
+    _openDropdown = dropdown;
+  }
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', function() {
+  if (_openDropdown) {
+    _openDropdown.classList.remove('open');
+    _openDropdown = null;
+  }
+});
+
+function changeStatus(submissionId, newStatus, optionBtn) {
+  // Close dropdown immediately
+  var dropdown = optionBtn.closest('.status-select');
+  if (dropdown) { dropdown.classList.remove('open'); _openDropdown = null; }
+
+  var rowEl = document.getElementById('seqlen-row-' + submissionId);
+  if (!rowEl) return;
+
+  var oldStatus = rowEl.getAttribute('data-status');
+
+  // Optimistically update UI
+  applyStatusToRow(rowEl, newStatus);
+
+  // Update counter
+  var groupEl = rowEl.closest('[id^="group-"]');
+  if (groupEl) {
+    var group = groupEl.id.replace('group-', '');
+    updateCounter(group);
+  }
+
+  // HTMX patch
+  htmx.ajax('PATCH', '/roadmap/submissions/' + submissionId + '/status', {
+    values: { status: newStatus },
+    target: '#seqlen-row-' + submissionId,
+    swap: 'outerHTML'
+  }).catch(function() {
+    // Revert on failure
+    if (rowEl.isConnected) applyStatusToRow(rowEl, oldStatus);
+    showToast('Failed to save status change', 'error');
+  });
+}
+
+function applyStatusToRow(rowEl, status) {
+  rowEl.setAttribute('data-status', status);
+  var labelEl = rowEl.querySelector('.seqlen-status-text');
+  if (labelEl) {
+    labelEl.textContent = status.replace(/_/g, ' ');
+  }
+}
+
+/* ── Date input ────────────────────────────────────────────────── */
+function openDateInput(evt, benchmarkVersion, dateType) {
+  evt.stopPropagation(); // don't trigger section collapse
+  var inputId = dateType + '-date-input-' + benchmarkVersion;
+  var inputEl = document.getElementById(inputId);
+  if (!inputEl) return;
+
+  // Make it briefly interactive
+  inputEl.style.position = 'fixed';
+  inputEl.style.opacity = '0';
+  inputEl.style.width = '1px';
+  inputEl.style.height = '1px';
+  inputEl.style.pointerEvents = 'auto';
+  inputEl.showPicker ? inputEl.showPicker() : inputEl.click();
+  setTimeout(function() {
+    inputEl.style.pointerEvents = 'none';
+  }, 500);
+}
+
+function onDateSaved(inputEl, benchmarkVersion, dateType) {
+  var val = inputEl.value;
+  var displayId = dateType + '-date-' + benchmarkVersion;
+  var displayEl = document.getElementById(displayId);
+  if (displayEl) {
+    displayEl.textContent = val || 'TBD';
+  }
+}
+
+/* ── Notes modal ───────────────────────────────────────────────── */
+var _notesCellEl = null;
+
+function openNotesModal(cellEl) {
+  _notesCellEl = cellEl;
+  var bv    = cellEl.getAttribute('data-bv');
+  var chip  = cellEl.getAttribute('data-chip');
+  var model = cellEl.getAttribute('data-model');
+
+  document.getElementById('modal-cell-label').textContent = model + ' · ' + chip;
+
+  // Gather existing notes from data attribute or a data store
+  var notes = cellEl.getAttribute('data-notes') || '';
+  document.getElementById('modal-notes-text').value = notes;
+
+  var modal = document.getElementById('notes-modal');
+  modal.showModal();
+}
+
+function saveNotes() {
+  if (!_notesCellEl) return;
+
+  var bv    = _notesCellEl.getAttribute('data-bv');
+  var chip  = _notesCellEl.getAttribute('data-chip');
+  var model = _notesCellEl.getAttribute('data-model');
+  var notes = document.getElementById('modal-notes-text').value.trim();
+
+  var saveBtn = document.getElementById('modal-save-btn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving…';
+
+  htmx.ajax('PATCH', '/roadmap/submissions/notes', {
+    values: {
+      benchmark_version: bv,
+      chip: chip,
+      model: model,
+      notes: notes
+    },
+    swap: 'none'
+  }).then(function() {
+    // Update cell state
+    _notesCellEl.setAttribute('data-notes', notes);
+    if (notes) {
+      _notesCellEl.classList.add('has-notes');
+    } else {
+      _notesCellEl.classList.remove('has-notes');
+    }
+    document.getElementById('notes-modal').close();
+    showToast('Notes saved');
+  }).catch(function() {
+    showToast('Failed to save notes', 'error');
+  }).finally(function() {
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save Notes';
+  });
+}
+
+/* ── Toast helper ──────────────────────────────────────────────── */
+function showToast(msg, type) {
+  var container = document.getElementById('toast-container');
+  if (!container) return;
+  var el = document.createElement('div');
+  el.className = 'toast';
+  el.style.borderLeftColor = (type === 'error') ? 'var(--red)' : 'var(--green)';
+  el.style.borderLeft = '3px solid ' + ((type === 'error') ? 'var(--red)' : 'var(--green)');
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(function() { el.remove(); }, 2800);
+}
+
+/* ── Init: seed counters ───────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', function() {
+  {% for group in data.groups %}
+  updateCounter('{{ group.benchmark_group }}');
+  {% endfor %}
+});
+</script>
+{% endblock %}
