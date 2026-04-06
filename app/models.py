@@ -150,3 +150,17 @@ class Request(Base):
     submitted_by = Column(Text)
     created_at   = Column(DateTime, default=_now)
     updated_at   = Column(DateTime, default=_now, onupdate=_now)
+
+
+class Comment(Base):
+    __tablename__ = "comments"
+
+    id          = Column(Integer, primary_key=True)
+    workload_id = Column(Integer, ForeignKey("workloads.id"), nullable=False)
+    field       = Column(Text, nullable=False)   # column key, e.g. "nv_tps"
+    body        = Column(Text, nullable=False)
+    author      = Column(Text)
+    parent_id   = Column(Integer, ForeignKey("comments.id"), nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+    resolved_by = Column(Text, nullable=True)
+    created_at  = Column(DateTime, default=_now)
