@@ -11,9 +11,9 @@
 </div>
 
 {# ── Section: New ── #}
-<div class="mb-4" style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+<div class="mb-6" style="border:1px solid var(--border);border-left:4px solid var(--green);border-radius:8px;overflow:hidden">
   <div onclick="toggleSection('sec-new')"
-       style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg-card);cursor:pointer;user-select:none">
+       style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(118,185,0,0.06);cursor:pointer;user-select:none">
     <span class="font-metric font-bold" style="font-size:0.95rem;color:var(--text)">
       New <span class="badge badge-green" style="margin-left:6px">{{ new | length }}</span>
     </span>
@@ -64,9 +64,9 @@
 </div>
 
 {# ── Section: In Progress ── #}
-<div class="mb-4" style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+<div class="mb-6" style="border:1px solid var(--border);border-left:4px solid var(--blue);border-radius:8px;overflow:hidden">
   <div onclick="toggleSection('sec-in-progress')"
-       style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg-card);cursor:pointer;user-select:none">
+       style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(74,158,255,0.06);cursor:pointer;user-select:none">
     <span class="font-metric font-bold" style="font-size:0.95rem;color:var(--text)">
       In Progress <span class="badge badge-blue" style="margin-left:6px">{{ in_progress | length }}</span>
     </span>
@@ -120,15 +120,15 @@
 </div>
 
 {# ── Section: Completed ── #}
-<div class="mb-4" style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+<div class="mb-6" style="border:1px solid var(--border);border-left:4px solid #555;border-radius:8px;overflow:hidden">
   <div onclick="toggleSection('sec-completed')"
-       style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg-card);cursor:pointer;user-select:none">
+       style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(255,255,255,0.03);cursor:pointer;user-select:none">
     <span class="font-metric font-bold" style="font-size:0.95rem;color:var(--text)">
       Completed <span class="badge badge-muted" style="margin-left:6px">{{ completed | length }}</span>
     </span>
-    <span id="sec-completed-icon" style="color:var(--text-muted);font-size:0.85rem">▸</span>
+    <span id="sec-completed-icon" style="color:var(--text-muted);font-size:0.85rem">▾</span>
   </div>
-  <div id="sec-completed" style="display:none">
+  <div id="sec-completed">
     {% if completed %}
     <div style="overflow-x:auto">
       <table class="wl-table">
