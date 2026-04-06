@@ -159,3 +159,35 @@ class RequestUpdate(BaseModel):
     status: Optional[str] = None
     pic:    Optional[str] = None
     eta:    Optional[str] = None  # ISO date string YYYY-MM-DD
+
+
+class CommentCreate(BaseModel):
+    field:  str
+    body:   str
+    author: Optional[str] = None
+
+
+class CommentReply(BaseModel):
+    body:   str
+    author: Optional[str] = None
+
+
+class CommentResolve(BaseModel):
+    resolved_by: Optional[str] = None
+
+
+class CommentRow(BaseModel):
+    id:          int
+    workload_id: int
+    field:       str
+    body:        str
+    author:      Optional[str]
+    parent_id:   Optional[int]
+    resolved_at: Optional[str]   # ISO string
+    resolved_by: Optional[str]
+    created_at:  Optional[str]   # ISO string
+    replies:     list["CommentRow"] = []
+
+    model_config = {"from_attributes": True}
+
+CommentRow.model_rebuild()
