@@ -6,7 +6,7 @@ unreachable, or no data exists.
 """
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 import httpx
@@ -95,4 +95,4 @@ def check_workload(
 
     dates = [_parse_run_date(r) for r in records]
     valid = [d for d in dates if d is not None]
-    return max(valid) if valid else datetime.now(timezone.utc)
+    return max(valid) if valid else None
