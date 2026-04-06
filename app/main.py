@@ -23,6 +23,7 @@ from app.routers import breadth_studies as breadth_studies_router
 from app.routers import devzone as devzone_router
 from app.routers import sentinel as sentinel_router
 from app.routers import requests as requests_router
+from app.routers import ibdb as ibdb_router
 from app.routers.workloads import _to_row
 
 app = FastAPI(title="inf-hub")
@@ -71,6 +72,7 @@ app.include_router(breadth_studies_router.router)
 app.include_router(devzone_router.router)
 app.include_router(sentinel_router.router)
 app.include_router(requests_router.router)
+app.include_router(ibdb_router.router)
 
 _scheduler = BackgroundScheduler(daemon=True)
 
@@ -87,11 +89,24 @@ def _run_daily_sentinel_sync() -> None:
         db.close()
 
 
+def _run_ibdb_sync() -> None:
+    """Called by APScheduler every 5 minutes."""
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        ibdb_router.sync_ibdb(db)
+    except Exception as exc:
+        print(f"[ibdb] scheduled sync error: {exc}")
+    finally:
+        db.close()
+
+
 @app.on_event("startup")
 def start_sentinel_scheduler() -> None:
     if not _scheduler.running:
         hour = int(os.getenv("SENTINEL_SYNC_HOUR", "6"))
         _scheduler.add_job(_run_daily_sentinel_sync, "cron", hour=hour, minute=0)
+        _scheduler.add_job(_run_ibdb_sync, "interval", minutes=5)
         _scheduler.start()
 
 
