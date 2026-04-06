@@ -75,3 +75,20 @@ def test_team_function_crud(db):
     db.add(tf)
     db.commit()
     assert db.query(TeamFunction).count() == 1
+
+
+def test_workload_has_ibdb_columns(db):
+    from app.models import Workload
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    w = Workload(
+        model="LLaMA3", hardware="MI300X", framework="vLLM",
+        precision="FP16", scenario="agg", seqlens="2k/2k",
+        ibdb_latest_run_at=now,
+        ibdb_synced_at=now,
+    )
+    db.add(w)
+    db.commit()
+    db.refresh(w)
+    assert w.ibdb_latest_run_at is not None
+    assert w.ibdb_synced_at is not None

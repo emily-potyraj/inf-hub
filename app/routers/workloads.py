@@ -64,6 +64,8 @@ def _to_row(w: Workload) -> WorkloadRow:
     d["sentinel_summary"] = w.sentinel_summary
     d["sentinel_image_url"] = w.sentinel_image_url
     d["sentinel_synced_at"] = w.sentinel_synced_at.isoformat() if w.sentinel_synced_at else None
+    d["ibdb_latest_run_at"] = w.ibdb_latest_run_at.isoformat() if w.ibdb_latest_run_at else None
+    d["ibdb_synced_at"]     = w.ibdb_synced_at.isoformat() if w.ibdb_synced_at else None
     return WorkloadRow(**d)
 
 

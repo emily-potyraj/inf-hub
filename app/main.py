@@ -209,6 +209,8 @@ def index(
         "status": r.status, "pic": r.pic, "priority": r.priority,
         "nv_tps": r.nv_tps, "amd_tps": r.amd_tps, "gap_pct": r.gap_pct,
         "notes": r.notes, "last_run_date": r.last_run_date,
+        "ibdb_latest_run_at": r.ibdb_latest_run_at,
+        "ibdb_synced_at": r.ibdb_synced_at,
     } for r in rows_sorted])
 
     stats = {
