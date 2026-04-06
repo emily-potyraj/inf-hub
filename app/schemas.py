@@ -143,6 +143,7 @@ class DevzoneSeriesPreview(BaseModel):
     point_count: int
     duplicate:   bool
 
+
 class RequestCreate(BaseModel):
     model:        str
     hardware:     str
@@ -158,35 +159,3 @@ class RequestUpdate(BaseModel):
     status: Optional[str] = None
     pic:    Optional[str] = None
     eta:    Optional[str] = None  # ISO date string YYYY-MM-DD
-
-
-class CommentCreate(BaseModel):
-    field: str
-    body: str
-    author: Optional[str] = None
-
-
-class CommentReply(BaseModel):
-    body: str
-    author: Optional[str] = None
-
-
-class CommentResolve(BaseModel):
-    resolved_by: Optional[str] = None
-
-
-class CommentRow(BaseModel):
-    id: int
-    workload_id: int
-    field: str
-    body: str
-    author: Optional[str] = None
-    parent_id: Optional[int] = None
-    resolved_at: Optional[str] = None
-    resolved_by: Optional[str] = None
-    created_at: Optional[str] = None
-    replies: list["CommentRow"] = []
-
-    model_config = {"from_attributes": True}
-
-
