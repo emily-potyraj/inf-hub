@@ -25,6 +25,8 @@ from app.routers import sentinel as sentinel_router
 from app.routers import requests as requests_router
 from app.routers import ibdb as ibdb_router
 from app.routers import comments as comments_router
+from app.routers import roadmap as roadmap_router
+from app.routers.roadmap import _build_data
 from app.routers.workloads import _to_row
 
 app = FastAPI(title="inf-hub")
@@ -32,6 +34,16 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 # TODO: set to False once Entra SSO is configured (gated by bool(user) per-request)
 templates.env.globals["editable"] = True
+
+@app.get("/roadmap")
+def roadmap_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    data = _build_data(db)
+    return templates.TemplateResponse("roadmap.html", {"request": request, "user": user, "data": data})
+
 
 @app.get("/workloads/{workload_id}")
 def workload_detail(
@@ -75,6 +87,7 @@ app.include_router(sentinel_router.router)
 app.include_router(requests_router.router)
 app.include_router(ibdb_router.router)
 app.include_router(comments_router.router)
+app.include_router(roadmap_router.router)
 
 _scheduler = BackgroundScheduler(daemon=True)
 
