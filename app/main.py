@@ -23,6 +23,7 @@ from app.routers import breadth_studies as breadth_studies_router
 from app.routers import devzone as devzone_router
 from app.routers import sentinel as sentinel_router
 from app.routers import requests as requests_router
+from app.routers import comments as comments_router
 from app.routers.workloads import _to_row
 
 app = FastAPI(title="inf-hub")
@@ -71,6 +72,7 @@ app.include_router(breadth_studies_router.router)
 app.include_router(devzone_router.router)
 app.include_router(sentinel_router.router)
 app.include_router(requests_router.router)
+app.include_router(comments_router.router)
 
 _scheduler = BackgroundScheduler(daemon=True)
 
