@@ -68,7 +68,7 @@ def check_workload(
             timeout=15,
         )
         resp.raise_for_status()
-        records = resp.json().get("data", [])
+        records = resp.json().get("records", [])
     except Exception as exc:
         print(f"[ibdb] check_workload error ({model}/{hardware}): {exc}")
         return None

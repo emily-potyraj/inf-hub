@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 
 MOCK_RESPONSE_WITH_DATA = {
-    "data": [
+    "records": [
         {
             "ts_timestamp": "2025-03-14T09:32:00",
             "s_model_name": "deepseek-r1",
@@ -15,7 +15,7 @@ MOCK_RESPONSE_WITH_DATA = {
 }
 
 MOCK_RESPONSE_NO_DATA = {
-    "data": []
+    "records": []
 }
 
 NAME_MAP = {
