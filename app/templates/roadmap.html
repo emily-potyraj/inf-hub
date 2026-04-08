@@ -51,10 +51,16 @@
   }
 
   /* Date chips */
+  .date-chips-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 18px;
+  }
   .date-chip {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     padding: 2px 8px;
     border-radius: 4px;
     font-size: 0.72rem;
@@ -63,26 +69,20 @@
     border: 1px solid rgba(255,255,255,0.1);
     color: inherit;
     opacity: 0.85;
-    cursor: pointer;
-    position: relative;
-  }
-  .date-chips-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 18px;
   }
   .date-chip-input {
-    display: none;
-    background: #1c1e22;
-    border: 1px solid #4a5568;
-    color: var(--text);
-    border-radius: 4px;
-    padding: 1px 5px;
+    background: transparent;
+    border: none;
+    color: inherit;
     font-size: 0.72rem;
+    font-weight: 500;
     cursor: pointer;
     color-scheme: dark;
+    padding: 0;
+    min-width: 7em;
+    outline: none;
   }
+  .date-chip-input::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
 
   /* Version tabs */
   .version-tabs {
@@ -472,29 +472,23 @@
         <span class="section-arrow" id="arrow-{{ group.benchmark_group }}">▼</span>
       </div>
 
-      <!-- Date chips row — outside toggle, so clicks don't collapse section -->
+      <!-- Date chips row — outside toggle div, always visible, native date inputs -->
       {% if active_version.v %}
       <div class="date-chips-row" style="background: {{ header_bg }}; border-bottom: 1px solid {{ border_col }}">
-        <span class="date-chip" style="color: {{ accent }}" title="Click to set submission date"
-              onclick="openDatePicker(event, '{{ active_version.v.benchmark_version }}', 'submission')">
-          📅 Submission:&nbsp;<span id="sub-date-{{ active_version.v.benchmark_version }}" class="date-val">{{ active_version.v.submission_date or 'TBD' }}</span>
+        <label class="date-chip" style="color: {{ accent }}">
+          📅 Submission:
           <input type="date"
-                 id="sub-date-input-{{ active_version.v.benchmark_version }}"
                  class="date-chip-input"
                  value="{{ active_version.v.submission_date or '' }}"
-                 onclick="event.stopPropagation()"
                  onchange="saveDateValue(this, '{{ active_version.v.benchmark_version }}', 'submission')">
-        </span>
-        <span class="date-chip" style="color: {{ accent }}" title="Click to set publication date"
-              onclick="openDatePicker(event, '{{ active_version.v.benchmark_version }}', 'publication')">
-          📅 Publication:&nbsp;<span id="pub-date-{{ active_version.v.benchmark_version }}" class="date-val">{{ active_version.v.publication_date or 'TBD' }}</span>
+        </label>
+        <label class="date-chip" style="color: {{ accent }}">
+          📅 Publication:
           <input type="date"
-                 id="pub-date-input-{{ active_version.v.benchmark_version }}"
                  class="date-chip-input"
                  value="{{ active_version.v.publication_date or '' }}"
-                 onclick="event.stopPropagation()"
                  onchange="saveDateValue(this, '{{ active_version.v.benchmark_version }}', 'publication')">
-        </span>
+        </label>
       </div>
       {% endif %}
 
@@ -780,47 +774,8 @@ function applyStatusToRow(rowEl, status) {
 }
 
 /* ── Date input ────────────────────────────────────────────────── */
-var _activeDateInput = null;
-
-function _closeDateInput() {
-  if (!_activeDateInput) return;
-  _activeDateInput.style.display = 'none';
-  _activeDateInput = null;
-  document.querySelectorAll('.date-val').forEach(function(el) { el.style.display = ''; });
-}
-
-function openDatePicker(evt, bv, dateType) {
-  evt.stopPropagation();
-  _closeDateInput(); // close any previously open one
-
-  var input = document.getElementById(dateType + '-date-input-' + bv);
-  if (!input) return;
-
-  var prefix = dateType === 'submission' ? 'sub' : 'pub';
-  var text = document.getElementById(prefix + '-date-' + bv);
-  if (text) text.style.display = 'none';
-
-  input.style.display = 'inline-block';
-  _activeDateInput = input;
-  input.focus();
-
-  // Use rAF so browser paints the element before showPicker() is called
-  requestAnimationFrame(function() {
-    if (input.showPicker) {
-      try { input.showPicker(); } catch(e) {}
-    }
-  });
-}
-
 async function saveDateValue(inputEl, bv, dateType) {
   var val = inputEl.value;
-  var prefix = dateType === 'submission' ? 'sub' : 'pub';
-  var text = document.getElementById(prefix + '-date-' + bv);
-
-  inputEl.style.display = 'none';
-  _activeDateInput = null;
-  if (text) { text.textContent = val || 'TBD'; text.style.display = ''; }
-
   var body = {};
   body[dateType + '_date'] = val || null;
   try {
@@ -833,9 +788,6 @@ async function saveDateValue(inputEl, bv, dateType) {
     console.error('[roadmap] date save failed:', e);
   }
 }
-
-// Click outside → close picker
-document.addEventListener('click', _closeDateInput);
 
 /* ── Notes modal ───────────────────────────────────────────────── */
 var _notesCellEl = null;
