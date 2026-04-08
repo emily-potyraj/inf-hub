@@ -36,6 +36,17 @@ class DatesUpdate(BaseModel):
 # Data builder (shared by GET /roadmap/data and GET /roadmap page route)
 # ---------------------------------------------------------------------------
 
+_TAB_LABEL_MAP = {
+    "slt": "SLT",
+    "agentperf": "AgentPerf",
+}
+
+def _tab_label(benchmark_version: str) -> str:
+    """Derive a short tab label from the benchmark_version slug."""
+    suffix = benchmark_version.rsplit("-", 1)[-1]
+    return _TAB_LABEL_MAP.get(suffix, suffix)
+
+
 def _build_data(db: Session) -> dict:
     versions = (
         db.query(BenchmarkVersion)
@@ -95,7 +106,7 @@ def _build_data(db: Session) -> dict:
 
             versions_out.append({
                 "benchmark_version": v.benchmark_version,
-                "display_name": v.display_name,
+                "display_name": _tab_label(v.benchmark_version),
                 "is_active": bool(v.is_active),
                 "submission_date": v.submission_date,
                 "publication_date": v.publication_date,
