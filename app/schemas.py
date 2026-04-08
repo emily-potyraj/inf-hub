@@ -59,7 +59,9 @@ class WorkloadRow(BaseModel):
     sentinel_synced_at:     Optional[str]   = None  # ISO string
     ibdb_latest_run_at:  Optional[str]   = None  # ISO string
     ibdb_synced_at:      Optional[str]   = None  # ISO string
-    last_run_date:          Optional[str]   = None  # ISO string
+    last_run_date:       Optional[str]   = None  # ISO string
+    s_record_id:         Optional[str]   = None
+    s_study_id:          Optional[str]   = None
     last_updated: Optional[str]
 
     model_config = {"from_attributes": True}
