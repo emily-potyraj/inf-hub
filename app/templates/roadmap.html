@@ -66,13 +66,18 @@
     cursor: pointer;
     position: relative;
   }
-  .date-chip input[type="date"] {
-    position: absolute;
-    opacity: 0;
-    width: 1px;
-    height: 1px;
-    pointer-events: none;
+  .date-chip-input {
+    display: none;
+    background: #1c1e22;
+    border: 1px solid #4a5568;
+    color: var(--text);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.72rem;
+    cursor: pointer;
+    color-scheme: dark;
   }
+  .date-chip-input.open { display: inline-block; }
 
   /* Version tabs */
   .version-tabs {
@@ -461,33 +466,27 @@
           {% if active_version.v.submission_date is not none or True %}
           <span class="date-chip"
                 style="color: {{ accent }}"
-                title="Click to edit submission date"
-                onclick="openDateInput(event, '{{ active_version.v.benchmark_version }}', 'submission')">
-            📅 Sub:&nbsp;<span id="sub-date-{{ active_version.v.benchmark_version }}">{{ active_version.v.submission_date or 'TBD' }}</span>
+                title="Click to set submission date"
+                onclick="openDatePicker(event, '{{ active_version.v.benchmark_version }}', 'submission')">
+            📅 Submission:&nbsp;<span id="sub-date-{{ active_version.v.benchmark_version }}">{{ active_version.v.submission_date or 'TBD' }}</span>
             <input type="date"
                    id="sub-date-input-{{ active_version.v.benchmark_version }}"
+                   class="date-chip-input"
                    value="{{ active_version.v.submission_date or '' }}"
-                   hx-patch="/roadmap/versions/{{ active_version.v.benchmark_version }}/dates"
-                   hx-vals='{"date_type": "submission"}'
-                   hx-trigger="change"
-                   hx-swap="none"
-                   onchange="onDateSaved(this, '{{ active_version.v.benchmark_version }}', 'submission')"
-                   style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none">
+                   onchange="saveDateValue(this, '{{ active_version.v.benchmark_version }}', 'submission')"
+                   onblur="closeDatePicker(this, '{{ active_version.v.benchmark_version }}', 'submission')">
           </span>
           <span class="date-chip"
                 style="color: {{ accent }}"
-                title="Click to edit publication date"
-                onclick="openDateInput(event, '{{ active_version.v.benchmark_version }}', 'publication')">
-            📅 Pub:&nbsp;<span id="pub-date-{{ active_version.v.benchmark_version }}">{{ active_version.v.publication_date or 'TBD' }}</span>
+                title="Click to set publication date"
+                onclick="openDatePicker(event, '{{ active_version.v.benchmark_version }}', 'publication')">
+            📅 Publication:&nbsp;<span id="pub-date-{{ active_version.v.benchmark_version }}">{{ active_version.v.publication_date or 'TBD' }}</span>
             <input type="date"
                    id="pub-date-input-{{ active_version.v.benchmark_version }}"
+                   class="date-chip-input"
                    value="{{ active_version.v.publication_date or '' }}"
-                   hx-patch="/roadmap/versions/{{ active_version.v.benchmark_version }}/dates"
-                   hx-vals='{"date_type": "publication"}'
-                   hx-trigger="change"
-                   hx-swap="none"
-                   onchange="onDateSaved(this, '{{ active_version.v.benchmark_version }}', 'publication')"
-                   style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none">
+                   onchange="saveDateValue(this, '{{ active_version.v.benchmark_version }}', 'publication')"
+                   onblur="closeDatePicker(this, '{{ active_version.v.benchmark_version }}', 'publication')">
           </span>
           {% endif %}
           {% endif %}{# /active_version.v #}
@@ -778,30 +777,49 @@ function applyStatusToRow(rowEl, status) {
 }
 
 /* ── Date input ────────────────────────────────────────────────── */
-function openDateInput(evt, benchmarkVersion, dateType) {
-  evt.stopPropagation(); // don't trigger section collapse
-  var inputId = dateType + '-date-input-' + benchmarkVersion;
-  var inputEl = document.getElementById(inputId);
-  if (!inputEl) return;
-
-  // Make it briefly interactive
-  inputEl.style.position = 'fixed';
-  inputEl.style.opacity = '0';
-  inputEl.style.width = '1px';
-  inputEl.style.height = '1px';
-  inputEl.style.pointerEvents = 'auto';
-  inputEl.showPicker ? inputEl.showPicker() : inputEl.click();
-  setTimeout(function() {
-    inputEl.style.pointerEvents = 'none';
-  }, 500);
+function openDatePicker(evt, bv, dateType) {
+  evt.stopPropagation();
+  var input = document.getElementById(dateType + '-date-input-' + bv);
+  var text  = document.getElementById(dateType.replace('submission','sub').replace('publication','pub') + '-date-' + bv);
+  if (!input) return;
+  if (text) text.style.display = 'none';
+  input.classList.add('open');
+  input.focus();
+  try { input.showPicker(); } catch(e) {}
 }
 
-function onDateSaved(inputEl, benchmarkVersion, dateType) {
+function closeDatePicker(inputEl, bv, dateType) {
+  // Small delay so onchange fires before blur hides the input
+  setTimeout(function() {
+    inputEl.classList.remove('open');
+    var prefix = dateType === 'submission' ? 'sub' : 'pub';
+    var text = document.getElementById(prefix + '-date-' + bv);
+    if (text) text.style.display = '';
+  }, 150);
+}
+
+async function saveDateValue(inputEl, bv, dateType) {
   var val = inputEl.value;
-  var displayId = dateType + '-date-' + benchmarkVersion;
-  var displayEl = document.getElementById(displayId);
-  if (displayEl) {
-    displayEl.textContent = val || 'TBD';
+  var body = {};
+  body[dateType + '_date'] = val || null;
+
+  // Update display immediately
+  var prefix = dateType === 'submission' ? 'sub' : 'pub';
+  var text = document.getElementById(prefix + '-date-' + bv);
+  if (text) text.textContent = val || 'TBD';
+
+  // Close picker
+  inputEl.classList.remove('open');
+  if (text) text.style.display = '';
+
+  try {
+    await fetch('/roadmap/versions/' + encodeURIComponent(bv) + '/dates', {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+  } catch(e) {
+    console.error('[roadmap] date save failed:', e);
   }
 }
 
