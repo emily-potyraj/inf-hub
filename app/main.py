@@ -242,6 +242,7 @@ def index(
         "ibdb_latest_run_at": r.ibdb_latest_run_at,
         "ibdb_synced_at": r.ibdb_synced_at,
         "s_record_id": r.s_record_id,
+        "s_study_id":  r.s_study_id,
     } for r in rows_sorted])
 
     stats = {

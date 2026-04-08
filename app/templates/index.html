@@ -310,6 +310,7 @@ var _tableCols = [
   {key:'last_run_date', label:'Date last run'},
   {key:'ibdb_latest_run_at', label:'IBDB Data'},
   {key:'s_record_id',       label:'S Record ID'},
+  {key:'s_study_id',        label:'S Study ID'},
 ];
 
 function loadComments() {
@@ -408,6 +409,17 @@ function renderTable() {
       var v = r[col.key];
       var display = v == null ? '' : v;
       var style = 'padding:5px 10px;white-space:nowrap;color:var(--text)';
+
+      if (col.key === 's_study_id') {
+        var ibdbUrl = v
+          ? 'https://ibplatform.nvidia.com/sa_inference_max?page=sa_inference_max&s_record_id=' + encodeURIComponent('["' + v + '"]')
+          : null;
+        var sStudyDisplay = v
+          ? '<a href="' + ibdbUrl + '" target="_blank" rel="noopener" style="color:var(--green);text-decoration:none;font-size:0.78rem" onclick="event.stopPropagation()">' + v + '</a>'
+          : '<span style="color:#6b7280">—</span>';
+        html += '<td ondblclick="openCommentModal(' + r.id + ',\'' + col.key + '\')" style="' + style + ';position:relative;cursor:pointer">' + sStudyDisplay + '</td>';
+        return;
+      }
 
       if (col.key === 'ibdb_latest_run_at') {
         var val = r[col.key];
