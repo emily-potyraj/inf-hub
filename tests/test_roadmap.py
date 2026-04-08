@@ -49,7 +49,7 @@ def test_get_roadmap_data_empty(client):
 
 def test_get_roadmap_data_structure(client, db):
     _seed_version(db)
-    _seed_submission(db, seqlen="1k/1k", status="targeting")
+    _seed_submission(db, seqlen="1k/1k", status="tuning_wip")
     _seed_submission(db, seqlen="8k/1k", status="undecided")
 
     r = client.get("/roadmap/data")
@@ -77,7 +77,7 @@ def test_get_roadmap_data_structure(client, db):
     assert len(subs) == 2
     # Sorted by seqlen
     assert subs[0]["seqlen"] == "1k/1k"
-    assert subs[0]["status"] == "targeting"
+    assert subs[0]["status"] == "tuning_wip"
     assert subs[1]["seqlen"] == "8k/1k"
     assert subs[1]["status"] == "undecided"
 

@@ -90,7 +90,7 @@ def _build_data(db: Session) -> dict:
                 for chip_list in model_cells.values():
                     chip_list.sort(key=lambda x: x["seqlen"])
 
-            targeting_count = sum(1 for s in vsubs if s.status == "targeting")
+            targeting_count = sum(1 for s in vsubs if s.status in ("tuning_wip", "submitted", "published"))
             total_count = len(vsubs)
 
             versions_out.append({
