@@ -450,10 +450,11 @@
           <span class="counter-badge"
                 id="counter-{{ group.benchmark_group }}"
                 style="color: {{ accent }}; border: 1px solid {{ border_col }}">
+            <span style="font-weight:400;opacity:0.7;margin-right:4px">targeting to publish</span>
             <span id="counter-targeting-{{ group.benchmark_group }}">{{ active_version.v.targeting_count }}</span>
             <span style="opacity:0.5;margin:0 3px">/</span>
             <span id="counter-total-{{ group.benchmark_group }}">{{ active_version.v.total_count }}</span>
-            <span style="margin-left:4px;font-weight:400;opacity:0.7">targeting</span>
+            <span style="margin-left:4px;font-weight:400;opacity:0.7">possible configs</span>
           </span>
 
           <!-- Date chips — active version only -->
