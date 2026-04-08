@@ -63,7 +63,7 @@ def test_get_roadmap_data_structure(client, db):
 
     v = group["versions"][0]
     assert v["benchmark_version"] == "inferenceX-v3"
-    assert v["display_name"] == "InferenceX"
+    assert v["display_name"] == "v3"
     assert v["is_active"] is True
     assert v["chips"] == ["H100"]
     assert v["models"] == ["DeepSeekV4"]
