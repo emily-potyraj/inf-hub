@@ -22,12 +22,12 @@ from app.models import BenchmarkVersion, BenchmarkSubmission
 
 VERSIONS = [
     # (benchmark_version, benchmark_group, display_name, is_active, submission_date, publication_date, sort_order)
-    ("inferenceX-v3", "inferenceX",          "InferenceX",          1, None, None, 10),
-    ("inferenceX-v2", "inferenceX",          "InferenceX",          0, None, None, 20),
-    ("inferenceX-v1", "inferenceX",          "InferenceX",          0, None, None, 30),
-    ("mlperf-v6.1",   "mlperf",              "MLPerf Inference",    1, None, None, 40),
-    ("aa-slt",        "artificial_analysis", "Artificial Analysis", 1, None, None, 50),
-    ("aa-agentperf",  "artificial_analysis", "Artificial Analysis", 0, None, None, 60),
+    ("inferenceX-v3", "inferenceX",          "v3",        1, None, None, 10),
+    ("inferenceX-v2", "inferenceX",          "v2",        0, None, None, 20),
+    ("inferenceX-v1", "inferenceX",          "v1",        0, None, None, 30),
+    ("mlperf-v6.1",   "mlperf",              "v6.1",      1, None, None, 40),
+    ("aa-slt",        "artificial_analysis", "SLT",       1, None, None, 50),
+    ("aa-agentperf",  "artificial_analysis", "AgentPerf", 0, None, None, 60),
 ]
 
 # Submission combos:

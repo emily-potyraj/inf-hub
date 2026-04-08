@@ -66,6 +66,12 @@
     cursor: pointer;
     position: relative;
   }
+  .date-chips-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 18px;
+  }
   .date-chip-input {
     display: none;
     background: #1c1e22;
@@ -77,7 +83,6 @@
     cursor: pointer;
     color-scheme: dark;
   }
-  .date-chip-input.open { display: inline-block; }
 
   /* Version tabs */
   .version-tabs {
@@ -443,7 +448,7 @@
          style="border-color: {{ border_col }}"
          id="group-{{ group.benchmark_group }}">
 
-      <!-- Section header -->
+      <!-- Section header (toggle only — no interactive children) -->
       <div class="section-header"
            style="background: {{ header_bg }}; border-bottom: 1px solid {{ border_col }}"
            onclick="toggleSection('{{ group.benchmark_group }}')">
@@ -461,39 +466,37 @@
             <span id="counter-total-{{ group.benchmark_group }}">{{ active_version.v.total_count }}</span>
             <span style="margin-left:4px;font-weight:400;opacity:0.7">possible configs</span>
           </span>
-
-          <!-- Date chips — active version only -->
-          {% if active_version.v.submission_date is not none or True %}
-          <span class="date-chip"
-                style="color: {{ accent }}"
-                title="Click to set submission date"
-                onclick="openDatePicker(event, '{{ active_version.v.benchmark_version }}', 'submission')">
-            📅 Submission:&nbsp;<span id="sub-date-{{ active_version.v.benchmark_version }}" class="date-val">{{ active_version.v.submission_date or 'TBD' }}</span>
-            <input type="date"
-                   id="sub-date-input-{{ active_version.v.benchmark_version }}"
-                   class="date-chip-input"
-                   value="{{ active_version.v.submission_date or '' }}"
-                   onclick="event.stopPropagation()"
-                   onchange="saveDateValue(this, '{{ active_version.v.benchmark_version }}', 'submission')">
-          </span>
-          <span class="date-chip"
-                style="color: {{ accent }}"
-                title="Click to set publication date"
-                onclick="openDatePicker(event, '{{ active_version.v.benchmark_version }}', 'publication')">
-            📅 Publication:&nbsp;<span id="pub-date-{{ active_version.v.benchmark_version }}" class="date-val">{{ active_version.v.publication_date or 'TBD' }}</span>
-            <input type="date"
-                   id="pub-date-input-{{ active_version.v.benchmark_version }}"
-                   class="date-chip-input"
-                   value="{{ active_version.v.publication_date or '' }}"
-                   onclick="event.stopPropagation()"
-                   onchange="saveDateValue(this, '{{ active_version.v.benchmark_version }}', 'publication')">
-          </span>
           {% endif %}
-          {% endif %}{# /active_version.v #}
         </div>
 
         <span class="section-arrow" id="arrow-{{ group.benchmark_group }}">▼</span>
       </div>
+
+      <!-- Date chips row — outside toggle, so clicks don't collapse section -->
+      {% if active_version.v %}
+      <div class="date-chips-row" style="background: {{ header_bg }}; border-bottom: 1px solid {{ border_col }}">
+        <span class="date-chip" style="color: {{ accent }}" title="Click to set submission date"
+              onclick="openDatePicker(event, '{{ active_version.v.benchmark_version }}', 'submission')">
+          📅 Submission:&nbsp;<span id="sub-date-{{ active_version.v.benchmark_version }}" class="date-val">{{ active_version.v.submission_date or 'TBD' }}</span>
+          <input type="date"
+                 id="sub-date-input-{{ active_version.v.benchmark_version }}"
+                 class="date-chip-input"
+                 value="{{ active_version.v.submission_date or '' }}"
+                 onclick="event.stopPropagation()"
+                 onchange="saveDateValue(this, '{{ active_version.v.benchmark_version }}', 'submission')">
+        </span>
+        <span class="date-chip" style="color: {{ accent }}" title="Click to set publication date"
+              onclick="openDatePicker(event, '{{ active_version.v.benchmark_version }}', 'publication')">
+          📅 Publication:&nbsp;<span id="pub-date-{{ active_version.v.benchmark_version }}" class="date-val">{{ active_version.v.publication_date or 'TBD' }}</span>
+          <input type="date"
+                 id="pub-date-input-{{ active_version.v.benchmark_version }}"
+                 class="date-chip-input"
+                 value="{{ active_version.v.publication_date or '' }}"
+                 onclick="event.stopPropagation()"
+                 onchange="saveDateValue(this, '{{ active_version.v.benchmark_version }}', 'publication')">
+        </span>
+      </div>
+      {% endif %}
 
       <!-- Section body -->
       <div class="section-body" id="body-{{ group.benchmark_group }}">
