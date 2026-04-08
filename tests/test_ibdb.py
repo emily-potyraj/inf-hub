@@ -33,6 +33,8 @@ def test_sync_sets_ibdb_latest_run_at(auth_client, tmp_path, monkeypatch):
     wl = auth_client.get("/workloads").json()[0]
     assert wl["ibdb_latest_run_at"] is not None
     assert "2025-03-14" in wl["ibdb_latest_run_at"]
+    assert wl["last_run_date"] is not None
+    assert "2025-03-14" in wl["last_run_date"]
 
 
 def test_sync_sets_ibdb_synced_at_even_when_no_data(auth_client, tmp_path, monkeypatch):
