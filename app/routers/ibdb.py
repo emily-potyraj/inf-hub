@@ -47,6 +47,7 @@ def sync_ibdb(db: Session) -> dict:
         w.ibdb_synced_at = now
         if latest_run_at is not None:
             w.ibdb_latest_run_at = latest_run_at
+            w.last_run_date = latest_run_at
             with_data += 1
         synced += 1
 

@@ -1,4 +1,4 @@
-"""IBDB GraphQL client.
+"""IBDB REST client.
 
 Checks whether performance data exists for a workload and returns the
 latest run datetime. Returns None if the workload is unmapped, IBDB is
@@ -12,28 +12,9 @@ from typing import Optional
 import httpx
 
 NAME_MAP_PATH = os.getenv("IBDB_NAME_MAP_PATH", "data/ibdb_name_map.json")
-IBDB_URL = os.getenv("IBDB_URL", "https://ibpl-service.nvidia.com/graphql")
+IBDB_URL = os.getenv("IBDB_URL", "https://ibpl-service.nvidia.com/data")
 
-# Update this to the actual field name discovered via API probe
-_DATE_FIELD = "s_run_date"
-
-
-def _build_query() -> str:
-    return f"""
-query GetData($model: String, $hardware: String, $framework: String, $seqlen: String) {{
-  getData(
-    filters: {{
-      s_model_name: $model
-      s_accelerator_name: $hardware
-      s_framework_name: $framework
-      s_max_isl_osl: $seqlen
-    }}
-    pareto: true
-  ) {{
-    {_DATE_FIELD}
-  }}
-}}
-"""
+_DATE_FIELD = "ts_timestamp"
 
 
 def _load_name_map() -> dict:
@@ -69,23 +50,25 @@ def check_workload(
     if not ibdb_model or not ibdb_hw:
         return None  # unmapped — skip quietly
 
+    filters: dict = {
+        "s_model_name": ibdb_model,
+        "s_accelerator_name": ibdb_hw,
+    }
+    if ibdb_fw:
+        filters["s_framework_name"] = ibdb_fw
+
     try:
         resp = httpx.post(
             IBDB_URL,
             json={
-                "query": _build_query(),
-                "variables": {
-                    "model": ibdb_model,
-                    "hardware": ibdb_hw,
-                    "framework": ibdb_fw,
-                    "seqlen": seqlens,
-                },
+                "session_id": token,
+                "filters": filters,
+                "page_size": 100,
             },
-            headers={"Authorization": f"Bearer {token}"},
             timeout=15,
         )
         resp.raise_for_status()
-        records = resp.json().get("data", {}).get("getData", [])
+        records = resp.json().get("records", [])
     except Exception as exc:
         print(f"[ibdb] check_workload error ({model}/{hardware}): {exc}")
         return None
