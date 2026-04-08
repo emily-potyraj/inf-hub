@@ -50,6 +50,7 @@ class Workload(Base):
     work_type = Column(Text)   # nullable; 'tune' | 'breadth_test'
     study_id  = Column(Text)   # nullable; FK to breadth_studies.id (app-enforced)
     last_run_date = Column(DateTime)
+    s_record_id = Column(Text)
     created_at = Column(DateTime, default=_now)
     last_updated = Column(DateTime, default=_now, onupdate=_now)
 

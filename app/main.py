@@ -241,6 +241,7 @@ def index(
         "notes": r.notes, "last_run_date": r.last_run_date,
         "ibdb_latest_run_at": r.ibdb_latest_run_at,
         "ibdb_synced_at": r.ibdb_synced_at,
+        "s_record_id": r.s_record_id,
     } for r in rows_sorted])
 
     stats = {
