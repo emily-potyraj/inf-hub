@@ -136,3 +136,13 @@ def test_patch_amd_tps_sets_source_manual(auth_client):
     w_id = r.json()["id"]
     auth_client.patch(f"/workloads/{w_id}/amd_tps", json={"value": 1500.0})
     assert _get_workload(auth_client, w_id)["amd_tps_source"] == "manual"
+
+
+def test_index_page_renders_with_all_workload_fields(auth_client):
+    """GET / must not 500 — catches WorkloadRow schema missing fields that rows_json accesses."""
+    auth_client.post("/workloads", json=WORKLOAD_BASE)
+    r = auth_client.get("/")
+    assert r.status_code == 200
+    # rows_json fields that caused prod 500s when missing from WorkloadRow
+    for field in ("s_record_id", "s_study_id", "ibdb_latest_run_at", "ibdb_synced_at", "last_run_date"):
+        assert f'"{field}"' in r.text, f"rows_json missing field: {field}"
